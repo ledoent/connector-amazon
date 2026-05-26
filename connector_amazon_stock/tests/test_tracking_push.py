@@ -57,7 +57,7 @@ class TestTrackingPush(TransactionCase):
             }
         )
 
-        with patch.object(self.backend, "with_delay") as mock_delay:
+        with patch.object(type(self.backend), "with_delay") as mock_delay:
             delayed = MagicMock()
             mock_delay.return_value = delayed
             picking._enqueue_amazon_tracking_push()
@@ -74,7 +74,7 @@ class TestTrackingPush(TransactionCase):
                 "carrier_tracking_ref": "NOREF",
             }
         )
-        with patch.object(self.backend, "with_delay") as mock_delay:
+        with patch.object(type(self.backend), "with_delay") as mock_delay:
             picking._enqueue_amazon_tracking_push()
         mock_delay.assert_not_called()
 
@@ -87,6 +87,6 @@ class TestTrackingPush(TransactionCase):
                 "sale_id": self.sale.id,
             }
         )
-        with patch.object(self.backend, "with_delay") as mock_delay:
+        with patch.object(type(self.backend), "with_delay") as mock_delay:
             picking._enqueue_amazon_tracking_push()
         mock_delay.assert_not_called()

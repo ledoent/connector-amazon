@@ -13,7 +13,7 @@
                     class="btn-secondary"
                 />
             </header>
-            <xpath expr="//group[@string='Import Settings']" position="inside">
+            <xpath expr="//group[@name='import_settings']" position="inside">
                 <field name="team_id" />
                 <field name="pricelist_id" />
             </xpath>

@@ -1,0 +1,3 @@
+odoo-addon-queue_job==19.0.*
+odoo==19.0.*
+python-amazon-sp-api

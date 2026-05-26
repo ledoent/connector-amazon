@@ -59,8 +59,8 @@ class TestAmazBackendGetApi(TransactionCase):
         self.assertIn("refresh_token", creds)
         self.assertEqual(creds["lwa_app_id"], "test_client_id")
 
-    @patch("sp_api.api.Orders.__init__", return_value=None)
-    @patch("sp_api.api.Orders.get_orders")
+    @patch("sp_api.api.orders.orders_v0.OrdersV0.__init__", return_value=None)
+    @patch("sp_api.api.orders.orders_v0.OrdersV0.get_orders")
     def test_action_test_connection_sandbox(self, mock_get_orders, _mock_init):
         mock_response = MagicMock()
         mock_response.payload = SANDBOX_GET_ORDERS_PAYLOAD

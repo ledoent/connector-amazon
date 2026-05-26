@@ -89,3 +89,6 @@ docs/_build/
 
 # Secrets
 .env*
+
+# OCA CI generated files (local runs)
+test-constraints.txt

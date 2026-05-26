@@ -46,15 +46,13 @@ class TestConfirmShipment(TransactionCase):
         )
 
     def _make_picking(self, tracking_ref=None, carrier_name="UPS"):
-        carrier = self.env["delivery.carrier"].search([], limit=1)
-        if not carrier:
-            product = self.env["product.product"].create({"name": "Shipping"})
-            carrier = self.env["delivery.carrier"].create(
-                {
-                    "name": carrier_name,
-                    "product_id": product.id,
-                }
-            )
+        product = self.env["product.product"].create({"name": "Shipping"})
+        carrier = self.env["delivery.carrier"].create(
+            {
+                "name": carrier_name,
+                "product_id": product.id,
+            }
+        )
         picking = self.env["stock.picking"].create(
             {
                 "picking_type_id": self.env.ref("stock.picking_type_out").id,

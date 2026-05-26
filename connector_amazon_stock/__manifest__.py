@@ -8,8 +8,7 @@
     "license": "AGPL-3",
     "depends": [
         "connector_amazon_sale",
-        "stock",
-        "delivery",
+        "stock_delivery",
     ],
     "data": [
         "views/stock_picking_views.xml",

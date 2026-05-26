@@ -48,7 +48,7 @@ class TestImportOrders(TransactionCase):
     @patch("sp_api.api.Orders")
     def test_import_orders_enqueues_jobs(self, mock_orders_class):
         self._mock_orders_api(mock_orders_class)
-        with patch.object(self.backend, "with_delay") as mock_delay:
+        with patch.object(type(self.backend), "with_delay") as mock_delay:
             delayed = MagicMock()
             mock_delay.return_value = delayed
             self.backend.import_orders()
@@ -63,7 +63,7 @@ class TestImportOrders(TransactionCase):
     def test_import_orders_updates_cursor(self, mock_orders_class):
         self._mock_orders_api(mock_orders_class)
         self.backend.last_import_date = False
-        with patch.object(self.backend, "with_delay", return_value=MagicMock()):
+        with patch.object(type(self.backend), "with_delay", return_value=MagicMock()):
             self.backend.import_orders()
         self.assertTrue(self.backend.last_import_date)
 

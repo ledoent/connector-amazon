@@ -41,7 +41,7 @@
                             <field name="warehouse_id" />
                         </group>
                     </group>
-                    <group string="Import Settings">
+                    <group name="import_settings" string="Import Settings">
                         <field name="import_days_back" />
                         <field name="last_import_date" readonly="1" />
                     </group>
