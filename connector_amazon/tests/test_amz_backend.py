@@ -9,15 +9,17 @@ class TestAmazBackendGetApi(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.backend = cls.env["amz.backend"].create({
-            "name": "Test Backend",
-            "client_id": "test_client_id",
-            "client_secret": "test_secret",
-            "refresh_token": "test_refresh_token",
-            "marketplace_id": "ATVPDKIKX0DER",
-            "sandbox": True,
-            "warehouse_id": cls.env["stock.warehouse"].search([], limit=1).id,
-        })
+        cls.backend = cls.env["amz.backend"].create(
+            {
+                "name": "Test Backend",
+                "client_id": "test_client_id",
+                "client_secret": "test_secret",
+                "refresh_token": "test_refresh_token",
+                "marketplace_id": "ATVPDKIKX0DER",
+                "sandbox": True,
+                "warehouse_id": cls.env["stock.warehouse"].search([], limit=1).id,
+            }
+        )
 
     def test_get_api_sandbox_endpoint(self):
         mock_api_class = MagicMock()

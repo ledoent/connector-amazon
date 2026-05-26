@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 from odoo.tests.common import TransactionCase
 
@@ -15,15 +15,17 @@ class TestImportOrders(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.backend = cls.env["amz.backend"].create({
-            "name": "Test Sale Backend",
-            "client_id": "test_client_id",
-            "client_secret": "test_secret",
-            "refresh_token": "test_token",
-            "marketplace_id": "ATVPDKIKX0DER",
-            "sandbox": True,
-            "warehouse_id": cls.env["stock.warehouse"].search([], limit=1).id,
-        })
+        cls.backend = cls.env["amz.backend"].create(
+            {
+                "name": "Test Sale Backend",
+                "client_id": "test_client_id",
+                "client_secret": "test_secret",
+                "refresh_token": "test_token",
+                "marketplace_id": "ATVPDKIKX0DER",
+                "sandbox": True,
+                "warehouse_id": cls.env["stock.warehouse"].search([], limit=1).id,
+            }
+        )
 
     def _mock_orders_api(self, mock_api_class):
         api_instance = MagicMock()
@@ -70,10 +72,12 @@ class TestImportOrders(TransactionCase):
         self._mock_orders_api(mock_orders_class)
         self.backend._import_order(AMZ_ORDER_ID)
 
-        amz_order = self.env["amz.order"].search([
-            ("backend_id", "=", self.backend.id),
-            ("amz_order_id", "=", AMZ_ORDER_ID),
-        ])
+        amz_order = self.env["amz.order"].search(
+            [
+                ("backend_id", "=", self.backend.id),
+                ("amz_order_id", "=", AMZ_ORDER_ID),
+            ]
+        )
         self.assertEqual(len(amz_order), 1)
         self.assertTrue(amz_order.sale_order_id)
 
@@ -83,21 +87,27 @@ class TestImportOrders(TransactionCase):
         self.backend._import_order(AMZ_ORDER_ID)
         self.backend._import_order(AMZ_ORDER_ID)
 
-        amz_orders = self.env["amz.order"].search([
-            ("backend_id", "=", self.backend.id),
-            ("amz_order_id", "=", AMZ_ORDER_ID),
-        ])
-        self.assertEqual(len(amz_orders), 1, "Re-import must not create duplicate amz.order")
+        amz_orders = self.env["amz.order"].search(
+            [
+                ("backend_id", "=", self.backend.id),
+                ("amz_order_id", "=", AMZ_ORDER_ID),
+            ]
+        )
+        self.assertEqual(
+            len(amz_orders), 1, "Re-import must not create duplicate amz.order"
+        )
 
     @patch("sp_api.api.Orders")
     def test_import_order_creates_order_lines(self, mock_orders_class):
         self._mock_orders_api(mock_orders_class)
         self.backend._import_order(AMZ_ORDER_ID)
 
-        amz_order = self.env["amz.order"].search([
-            ("backend_id", "=", self.backend.id),
-            ("amz_order_id", "=", AMZ_ORDER_ID),
-        ])
+        amz_order = self.env["amz.order"].search(
+            [
+                ("backend_id", "=", self.backend.id),
+                ("amz_order_id", "=", AMZ_ORDER_ID),
+            ]
+        )
         self.assertEqual(len(amz_order.amz_order_line_ids), 1)
         line = amz_order.amz_order_line_ids[0]
         self.assertEqual(line.asin, "B00551Q3CS")
@@ -109,10 +119,12 @@ class TestImportOrders(TransactionCase):
         self._mock_orders_api(mock_orders_class)
         self.backend._import_order(AMZ_ORDER_ID)
 
-        amz_order = self.env["amz.order"].search([
-            ("backend_id", "=", self.backend.id),
-            ("amz_order_id", "=", AMZ_ORDER_ID),
-        ])
+        amz_order = self.env["amz.order"].search(
+            [
+                ("backend_id", "=", self.backend.id),
+                ("amz_order_id", "=", AMZ_ORDER_ID),
+            ]
+        )
         partner = amz_order.sale_order_id.partner_id
         self.assertEqual(partner.city, "SEATTLE")
         self.assertEqual(partner.country_id.code, "US")
@@ -123,10 +135,12 @@ class TestImportOrders(TransactionCase):
         self._mock_orders_api(mock_orders_class)
         self.backend._import_order(AMZ_ORDER_ID)
 
-        amz_order = self.env["amz.order"].search([
-            ("backend_id", "=", self.backend.id),
-            ("amz_order_id", "=", AMZ_ORDER_ID),
-        ])
+        amz_order = self.env["amz.order"].search(
+            [
+                ("backend_id", "=", self.backend.id),
+                ("amz_order_id", "=", AMZ_ORDER_ID),
+            ]
+        )
         sale_line = amz_order.sale_order_id.order_line[0]
         self.assertFalse(
             sale_line.product_id,

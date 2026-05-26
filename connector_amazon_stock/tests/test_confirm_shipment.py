@@ -10,49 +10,61 @@ class TestConfirmShipment(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         warehouse = cls.env["stock.warehouse"].search([], limit=1)
-        cls.backend = cls.env["amz.backend"].create({
-            "name": "Stock Backend",
-            "client_id": "cid",
-            "client_secret": "csec",
-            "refresh_token": "rtoken",
-            "marketplace_id": "ATVPDKIKX0DER",
-            "sandbox": True,
-            "warehouse_id": warehouse.id,
-        })
+        cls.backend = cls.env["amz.backend"].create(
+            {
+                "name": "Stock Backend",
+                "client_id": "cid",
+                "client_secret": "csec",
+                "refresh_token": "rtoken",
+                "marketplace_id": "ATVPDKIKX0DER",
+                "sandbox": True,
+                "warehouse_id": warehouse.id,
+            }
+        )
         partner = cls.env["res.partner"].create({"name": "Test Partner"})
-        cls.sale = cls.env["sale.order"].create({
-            "partner_id": partner.id,
-            "warehouse_id": warehouse.id,
-        })
-        cls.amz_order = cls.env["amz.order"].create({
-            "backend_id": cls.backend.id,
-            "amz_order_id": AMZ_ORDER_ID,
-            "sale_order_id": cls.sale.id,
-        })
-        cls.env["amz.order.line"].create({
-            "amz_order_id": cls.amz_order.id,
-            "order_item_id": "05015851154158",
-            "asin": "B00551Q3CS",
-            "seller_sku": "SKU001",
-            "quantity_ordered": 1,
-        })
+        cls.sale = cls.env["sale.order"].create(
+            {
+                "partner_id": partner.id,
+                "warehouse_id": warehouse.id,
+            }
+        )
+        cls.amz_order = cls.env["amz.order"].create(
+            {
+                "backend_id": cls.backend.id,
+                "amz_order_id": AMZ_ORDER_ID,
+                "sale_order_id": cls.sale.id,
+            }
+        )
+        cls.env["amz.order.line"].create(
+            {
+                "amz_order_id": cls.amz_order.id,
+                "order_item_id": "05015851154158",
+                "asin": "B00551Q3CS",
+                "seller_sku": "SKU001",
+                "quantity_ordered": 1,
+            }
+        )
 
     def _make_picking(self, tracking_ref=None, carrier_name="UPS"):
         carrier = self.env["delivery.carrier"].search([], limit=1)
         if not carrier:
             product = self.env["product.product"].create({"name": "Shipping"})
-            carrier = self.env["delivery.carrier"].create({
-                "name": carrier_name,
-                "product_id": product.id,
-            })
-        picking = self.env["stock.picking"].create({
-            "picking_type_id": self.env.ref("stock.picking_type_out").id,
-            "location_id": self.env.ref("stock.stock_location_stock").id,
-            "location_dest_id": self.env.ref("stock.stock_location_customers").id,
-            "sale_id": self.sale.id,
-            "carrier_id": carrier.id,
-            "carrier_tracking_ref": tracking_ref,
-        })
+            carrier = self.env["delivery.carrier"].create(
+                {
+                    "name": carrier_name,
+                    "product_id": product.id,
+                }
+            )
+        picking = self.env["stock.picking"].create(
+            {
+                "picking_type_id": self.env.ref("stock.picking_type_out").id,
+                "location_id": self.env.ref("stock.stock_location_stock").id,
+                "location_dest_id": self.env.ref("stock.stock_location_customers").id,
+                "sale_id": self.sale.id,
+                "carrier_id": carrier.id,
+                "carrier_tracking_ref": tracking_ref,
+            }
+        )
         return picking
 
     @patch("sp_api.api.Orders")
@@ -61,6 +73,7 @@ class TestConfirmShipment(TransactionCase):
         mock_orders_class.return_value = api_instance
 
         import datetime
+
         picking = self._make_picking(tracking_ref="1Z999AA10123456784")
         picking.date_done = datetime.datetime(2026, 5, 25, 10, 0, 0)
 
@@ -89,19 +102,24 @@ class TestConfirmShipment(TransactionCase):
         mock_orders_class.return_value = api_instance
 
         import datetime
+
         product = self.env["product.product"].create({"name": "Custom Ship"})
-        carrier = self.env["delivery.carrier"].create({
-            "name": "MyLocalCourier",
-            "product_id": product.id,
-        })
-        picking = self.env["stock.picking"].create({
-            "picking_type_id": self.env.ref("stock.picking_type_out").id,
-            "location_id": self.env.ref("stock.stock_location_stock").id,
-            "location_dest_id": self.env.ref("stock.stock_location_customers").id,
-            "sale_id": self.sale.id,
-            "carrier_id": carrier.id,
-            "carrier_tracking_ref": "LOCAL123",
-        })
+        carrier = self.env["delivery.carrier"].create(
+            {
+                "name": "MyLocalCourier",
+                "product_id": product.id,
+            }
+        )
+        picking = self.env["stock.picking"].create(
+            {
+                "picking_type_id": self.env.ref("stock.picking_type_out").id,
+                "location_id": self.env.ref("stock.stock_location_stock").id,
+                "location_dest_id": self.env.ref("stock.stock_location_customers").id,
+                "sale_id": self.sale.id,
+                "carrier_id": carrier.id,
+                "carrier_tracking_ref": "LOCAL123",
+            }
+        )
         picking.date_done = datetime.datetime(2026, 5, 25, 10, 0, 0)
 
         self.backend._confirm_shipment(AMZ_ORDER_ID, picking.id)
