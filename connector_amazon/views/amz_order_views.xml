@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_amz_order_list" model="ir.ui.view">
+        <field name="name">amz.order.list</field>
+        <field name="model">amz.order</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="amz_order_id"/>
+                <field name="backend_id"/>
+                <field name="amazon_status"/>
+                <field name="fulfillment_channel"/>
+                <field name="purchase_date"/>
+                <field name="order_total"/>
+                <field name="sale_order_id"/>
+                <field name="sync_date"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_amz_order_form" model="ir.ui.view">
+        <field name="name">amz.order.form</field>
+        <field name="model">amz.order</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button
+                            name="%(sale.action_quotations_with_onboarding)d"
+                            type="action"
+                            class="oe_stat_button"
+                            icon="fa-file-text-o"
+                            invisible="not sale_order_id"
+                        >
+                            <field name="sale_order_id" widget="statinfo" string="Sale Order"/>
+                        </button>
+                    </div>
+                    <group>
+                        <group string="Amazon">
+                            <field name="amz_order_id"/>
+                            <field name="backend_id"/>
+                            <field name="amazon_status"/>
+                            <field name="fulfillment_channel"/>
+                            <field name="marketplace_id"/>
+                        </group>
+                        <group string="Dates">
+                            <field name="purchase_date"/>
+                            <field name="last_update_date"/>
+                            <field name="sync_date"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Order Lines">
+                            <field name="amz_order_line_ids">
+                                <list>
+                                    <field name="order_item_id"/>
+                                    <field name="asin"/>
+                                    <field name="seller_sku"/>
+                                    <field name="title"/>
+                                    <field name="quantity_ordered"/>
+                                    <field name="quantity_shipped"/>
+                                    <field name="item_price"/>
+                                    <field name="item_tax"/>
+                                    <field name="sale_order_line_id"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_amz_order_search" model="ir.ui.view">
+        <field name="name">amz.order.search</field>
+        <field name="model">amz.order</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="amz_order_id"/>
+                <field name="backend_id"/>
+                <field name="amazon_status"/>
+                <filter
+                    name="unshipped"
+                    string="Unshipped"
+                    domain="[('amazon_status', '=', 'Unshipped')]"
+                />
+                <filter
+                    name="no_sale_order"
+                    string="Not Imported"
+                    domain="[('sale_order_id', '=', False)]"
+                />
+                <group expand="0" string="Group By">
+                    <filter
+                        name="group_backend"
+                        string="Backend"
+                        context="{'group_by': 'backend_id'}"
+                    />
+                    <filter
+                        name="group_status"
+                        string="Amazon Status"
+                        context="{'group_by': 'amazon_status'}"
+                    />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_amz_order" model="ir.actions.act_window">
+        <field name="name">Amazon Orders</field>
+        <field name="res_model">amz.order</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_amz_order_search"/>
+    </record>
+
+    <menuitem
+        id="menu_amz_orders"
+        name="Orders"
+        parent="connector_amazon.menu_amz_root"
+        action="action_amz_order"
+        sequence="10"
+    />
+</odoo>

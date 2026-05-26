@@ -1,0 +1,7 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_amz_backend_manager,amz.backend manager,model_amz_backend,connector_amazon.group_amz_manager,1,1,1,1
+access_amz_backend_user,amz.backend user,model_amz_backend,connector_amazon.group_amz_user,1,0,0,0
+access_amz_order_manager,amz.order manager,model_amz_order,connector_amazon.group_amz_manager,1,1,1,1
+access_amz_order_user,amz.order user,model_amz_order,connector_amazon.group_amz_user,1,0,0,0
+access_amz_order_line_manager,amz.order.line manager,model_amz_order_line,connector_amazon.group_amz_manager,1,1,1,1
+access_amz_order_line_user,amz.order.line user,model_amz_order_line,connector_amazon.group_amz_user,1,0,0,0

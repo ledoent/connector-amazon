@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_amz_backend_form_sale" model="ir.ui.view">
+        <field name="name">amz.backend.form.sale</field>
+        <field name="model">amz.backend</field>
+        <field name="inherit_id" ref="connector_amazon.view_amz_backend_form"/>
+        <field name="arch" type="xml">
+            <header position="inside">
+                <button
+                    name="import_orders"
+                    string="Import Orders Now"
+                    type="object"
+                    class="btn-secondary"
+                />
+            </header>
+            <xpath expr="//group[@string='Import Settings']" position="inside">
+                <field name="team_id"/>
+                <field name="pricelist_id"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>
