@@ -5,14 +5,14 @@
         <field name="model">amz.order</field>
         <field name="arch" type="xml">
             <list>
-                <field name="amz_order_id"/>
-                <field name="backend_id"/>
-                <field name="amazon_status"/>
-                <field name="fulfillment_channel"/>
-                <field name="purchase_date"/>
-                <field name="order_total"/>
-                <field name="sale_order_id"/>
-                <field name="sync_date"/>
+                <field name="amz_order_id" />
+                <field name="backend_id" />
+                <field name="amazon_status" />
+                <field name="fulfillment_channel" />
+                <field name="purchase_date" />
+                <field name="order_total" />
+                <field name="sale_order_id" />
+                <field name="sync_date" />
             </list>
         </field>
     </record>
@@ -31,36 +31,40 @@
                             icon="fa-file-text-o"
                             invisible="not sale_order_id"
                         >
-                            <field name="sale_order_id" widget="statinfo" string="Sale Order"/>
+                            <field
+                                name="sale_order_id"
+                                widget="statinfo"
+                                string="Sale Order"
+                            />
                         </button>
                     </div>
                     <group>
                         <group string="Amazon">
-                            <field name="amz_order_id"/>
-                            <field name="backend_id"/>
-                            <field name="amazon_status"/>
-                            <field name="fulfillment_channel"/>
-                            <field name="marketplace_id"/>
+                            <field name="amz_order_id" />
+                            <field name="backend_id" />
+                            <field name="amazon_status" />
+                            <field name="fulfillment_channel" />
+                            <field name="marketplace_id" />
                         </group>
                         <group string="Dates">
-                            <field name="purchase_date"/>
-                            <field name="last_update_date"/>
-                            <field name="sync_date"/>
+                            <field name="purchase_date" />
+                            <field name="last_update_date" />
+                            <field name="sync_date" />
                         </group>
                     </group>
                     <notebook>
                         <page string="Order Lines">
                             <field name="amz_order_line_ids">
                                 <list>
-                                    <field name="order_item_id"/>
-                                    <field name="asin"/>
-                                    <field name="seller_sku"/>
-                                    <field name="title"/>
-                                    <field name="quantity_ordered"/>
-                                    <field name="quantity_shipped"/>
-                                    <field name="item_price"/>
-                                    <field name="item_tax"/>
-                                    <field name="sale_order_line_id"/>
+                                    <field name="order_item_id" />
+                                    <field name="asin" />
+                                    <field name="seller_sku" />
+                                    <field name="title" />
+                                    <field name="quantity_ordered" />
+                                    <field name="quantity_shipped" />
+                                    <field name="item_price" />
+                                    <field name="item_tax" />
+                                    <field name="sale_order_line_id" />
                                 </list>
                             </field>
                         </page>
@@ -75,9 +79,9 @@
         <field name="model">amz.order</field>
         <field name="arch" type="xml">
             <search>
-                <field name="amz_order_id"/>
-                <field name="backend_id"/>
-                <field name="amazon_status"/>
+                <field name="amz_order_id" />
+                <field name="backend_id" />
+                <field name="amazon_status" />
                 <filter
                     name="unshipped"
                     string="Unshipped"
@@ -108,7 +112,7 @@
         <field name="name">Amazon Orders</field>
         <field name="res_model">amz.order</field>
         <field name="view_mode">list,form</field>
-        <field name="search_view_id" ref="view_amz_order_search"/>
+        <field name="search_view_id" ref="view_amz_order_search" />
     </record>
 
     <menuitem

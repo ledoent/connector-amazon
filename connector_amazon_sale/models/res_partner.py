@@ -15,12 +15,14 @@ class ResPartner(models.Model):
         address_line2 = shipping_address.get("AddressLine2", "")
         phone = shipping_address.get("Phone", "")
 
-        country = self.env["res.country"].search(
-            [("code", "=", country_code)], limit=1
+        country = self.env["res.country"].search([("code", "=", country_code)], limit=1)
+        state = (
+            self.env["res.country.state"].search(
+                [("code", "=", state_code), ("country_id", "=", country.id)], limit=1
+            )
+            if state_code
+            else self.env["res.country.state"]
         )
-        state = self.env["res.country.state"].search(
-            [("code", "=", state_code), ("country_id", "=", country.id)], limit=1
-        ) if state_code else self.env["res.country.state"]
 
         domain = [
             ("name", "=", name),
@@ -31,14 +33,16 @@ class ResPartner(models.Model):
         if partner:
             return partner
 
-        return self.create({
-            "name": name,
-            "street": address_line1,
-            "street2": address_line2,
-            "city": city,
-            "zip": postal_code,
-            "state_id": state.id if state else False,
-            "country_id": country.id if country else False,
-            "phone": phone,
-            "customer_rank": 1,
-        })
+        return self.create(
+            {
+                "name": name,
+                "street": address_line1,
+                "street2": address_line2,
+                "city": city,
+                "zip": postal_code,
+                "state_id": state.id if state else False,
+                "country_id": country.id if country else False,
+                "phone": phone,
+                "customer_rank": 1,
+            }
+        )

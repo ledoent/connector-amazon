@@ -3,7 +3,7 @@
     <record id="view_amz_backend_form_sale" model="ir.ui.view">
         <field name="name">amz.backend.form.sale</field>
         <field name="model">amz.backend</field>
-        <field name="inherit_id" ref="connector_amazon.view_amz_backend_form"/>
+        <field name="inherit_id" ref="connector_amazon.view_amz_backend_form" />
         <field name="arch" type="xml">
             <header position="inside">
                 <button
@@ -14,8 +14,8 @@
                 />
             </header>
             <xpath expr="//group[@string='Import Settings']" position="inside">
-                <field name="team_id"/>
-                <field name="pricelist_id"/>
+                <field name="team_id" />
+                <field name="pricelist_id" />
             </xpath>
         </field>
     </record>

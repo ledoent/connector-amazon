@@ -4,7 +4,7 @@ from odoo import models
 
 _logger = logging.getLogger(__name__)
 
-# SP-API carrier code mapping from Odoo delivery carrier names (case-insensitive prefix match)
+# Carrier name prefix → SP-API carrier code (case-insensitive match)
 _CARRIER_CODE_MAP = {
     "ups": "UPS",
     "usps": "USPS",
@@ -37,7 +37,9 @@ class AmazonBackend(models.Model):
 
         picking = self.env["stock.picking"].browse(picking_id)
         if not picking.exists():
-            _logger.warning("Picking %s no longer exists; skipping tracking push.", picking_id)
+            _logger.warning(
+                "Picking %s no longer exists; skipping tracking push.", picking_id
+            )
             return
 
         tracking_ref = picking.carrier_tracking_ref

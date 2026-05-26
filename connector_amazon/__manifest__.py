@@ -23,5 +23,6 @@
         "views/res_config_settings_views.xml",
     ],
     "maintainers": ["dnplkndll"],
+    "development_status": "Alpha",
     "installable": True,
 }

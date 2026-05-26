@@ -11,7 +11,6 @@ class SaleOrder(models.Model):
     @classmethod
     def _create_from_amazon(cls, amz_order, partner, order_items, backend):
         """Create a sale.order from an amz.order + items list."""
-        SaleOrder = cls  # noqa: N806 — using classmethod for clarity
         env = backend.env
 
         order_vals = {

@@ -29,17 +29,17 @@ class AmazonOrder(models.Model):
         required=True,
         index=True,
     )
-    amazon_status = fields.Selection(AMZ_ORDER_STATUS, string="Amazon Status")
+    amazon_status = fields.Selection(AMZ_ORDER_STATUS)
     fulfillment_channel = fields.Selection(
         [("MFN", "Merchant (MFN)"), ("AFN", "Amazon (FBA)")],
         string="Fulfillment",
     )
     marketplace_id = fields.Char("Marketplace ID")
-    purchase_date = fields.Datetime("Purchase Date")
+    purchase_date = fields.Datetime()
     last_update_date = fields.Datetime("Last Updated")
     sync_date = fields.Datetime("Last Synced", readonly=True)
 
-    order_total = fields.Monetary("Order Total", currency_field="currency_id")
+    order_total = fields.Monetary(currency_field="currency_id")
     currency_id = fields.Many2one(
         "res.currency",
         default=lambda self: self.env.ref("base.USD"),
@@ -47,7 +47,6 @@ class AmazonOrder(models.Model):
 
     sale_order_id = fields.Many2one(
         "sale.order",
-        string="Sale Order",
         ondelete="set null",
         index=True,
     )
@@ -55,7 +54,6 @@ class AmazonOrder(models.Model):
     amz_order_line_ids = fields.One2many(
         "amz.order.line",
         "amz_order_id",
-        string="Order Lines",
     )
 
     _sql_constraints = [

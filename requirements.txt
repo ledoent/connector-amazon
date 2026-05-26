@@ -1,1 +1,2 @@
-python-amazon-sp-api>=2.1.8
+# generated from manifests external_dependencies
+sp_api

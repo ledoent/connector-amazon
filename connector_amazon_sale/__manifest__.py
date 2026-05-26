@@ -16,5 +16,6 @@
         "views/amz_order_views.xml",
     ],
     "maintainers": ["dnplkndll"],
+    "development_status": "Alpha",
     "installable": True,
 }

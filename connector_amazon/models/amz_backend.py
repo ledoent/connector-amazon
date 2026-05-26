@@ -1,9 +1,7 @@
-import contextlib
 import types
 
-from odoo import _, fields, models
+from odoo import fields, models
 from odoo.exceptions import UserError
-
 
 MARKETPLACES = [
     ("ATVPDKIKX0DER", "US — amazon.com"),
@@ -44,24 +42,6 @@ _MARKETPLACE_REGION_SUFFIX = {
     "A19VAU5U5O7RUS": "fe",
 }
 
-AWS_REGIONS = [
-    ("us-east-1", "North America (us-east-1)"),
-    ("eu-west-1", "Europe (eu-west-1)"),
-    ("us-west-2", "Far East (us-west-2)"),
-]
-
-
-@contextlib.contextmanager
-def _sp_api_env(sandbox):
-    """Temporarily set AWS_ENV for python-amazon-sp-api.
-
-    The library evaluates BASE_URL at import time, so we patch the
-    marketplace endpoint directly rather than relying on the env var.
-    This context manager exists to document intent; actual endpoint
-    overriding is done in _get_api().
-    """
-    yield sandbox
-
 
 class AmazonBackend(models.Model):
     _name = "amz.backend"
@@ -85,8 +65,12 @@ class AmazonBackend(models.Model):
 
     # SP-API credentials
     client_id = fields.Char("LWA Client ID", required=True)
-    client_secret = fields.Char("LWA Client Secret", required=True, groups="base.group_system")
-    refresh_token = fields.Char("LWA Refresh Token", required=True, groups="base.group_system")
+    client_secret = fields.Char(
+        "LWA Client Secret", required=True, groups="base.group_system"
+    )
+    refresh_token = fields.Char(
+        "LWA Refresh Token", required=True, groups="base.group_system"
+    )
 
     marketplace_id = fields.Selection(
         MARKETPLACES,
@@ -175,12 +159,15 @@ class AmazonBackend(models.Model):
                 "type": "ir.actions.client",
                 "tag": "display_notification",
                 "params": {
-                    "title": _("Connection successful"),
-                    "message": _("Retrieved %d order(s) from Amazon.", order_count),
+                    "title": self.env._("Connection successful"),
+                    "message": self.env._(
+                        "Retrieved %(count)d order(s) from Amazon.",
+                        count=order_count,
+                    ),
                     "type": "success",
                 },
             }
         except SellingApiException as exc:
-            raise UserError(_("Amazon SP-API error: %s") % exc) from exc
+            raise UserError(self.env._("Amazon SP-API error: %s", exc)) from exc
         except Exception as exc:
-            raise UserError(_("Connection failed: %s") % exc) from exc
+            raise UserError(self.env._("Connection failed: %s", exc)) from exc

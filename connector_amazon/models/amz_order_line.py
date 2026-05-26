@@ -20,10 +20,10 @@ class AmazonOrderLine(models.Model):
     order_item_id = fields.Char("Amazon Order Item ID", required=True, index=True)
     asin = fields.Char("ASIN")
     seller_sku = fields.Char("Seller SKU")
-    title = fields.Char("Title")
+    title = fields.Char()
     quantity_ordered = fields.Integer("Qty Ordered")
     quantity_shipped = fields.Integer("Qty Shipped")
-    item_price = fields.Monetary("Item Price", currency_field="currency_id")
+    item_price = fields.Monetary(currency_field="currency_id")
     item_tax = fields.Monetary("Tax", currency_field="currency_id")
     currency_id = fields.Many2one(
         related="amz_order_id.currency_id",
@@ -32,7 +32,6 @@ class AmazonOrderLine(models.Model):
 
     sale_order_line_id = fields.Many2one(
         "sale.order.line",
-        string="Sale Order Line",
         ondelete="set null",
     )
 

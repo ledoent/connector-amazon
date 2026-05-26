@@ -15,5 +15,6 @@
         "views/stock_picking_views.xml",
     ],
     "maintainers": ["dnplkndll"],
+    "development_status": "Alpha",
     "installable": True,
 }
