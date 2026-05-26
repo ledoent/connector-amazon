@@ -56,10 +56,7 @@ class AmazonOrder(models.Model):
         "amz_order_id",
     )
 
-    _sql_constraints = [
-        (
-            "amz_order_backend_unique",
-            "UNIQUE(backend_id, amz_order_id)",
-            "Amazon order ID must be unique per backend.",
-        ),
-    ]
+    amz_order_backend_unique = models.Constraint(
+        "UNIQUE(backend_id, amz_order_id)",
+        "Amazon order ID must be unique per backend.",
+    )
