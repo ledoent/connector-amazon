@@ -12,7 +12,7 @@
         "delivery",
     ],
     "external_dependencies": {
-        "python": ["sp_api"],
+        "python": ["python-amazon-sp-api"],
     },
     "data": [
         "security/amz_security.xml",

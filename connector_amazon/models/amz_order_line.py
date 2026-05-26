@@ -35,7 +35,7 @@ class AmazonOrderLine(models.Model):
         ondelete="set null",
     )
 
-    amz_order_line_unique = models.Constraint(
+    _amz_order_line_unique = models.Constraint(
         "UNIQUE(amz_order_id, order_item_id)",
         "Amazon order item ID must be unique per order.",
     )
