@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_amz_backend_form_repricing" model="ir.ui.view">
+        <field name="name">amz.backend.form.repricing</field>
+        <field name="model">amz.backend</field>
+        <field name="inherit_id" ref="connector_amazon.view_amz_backend_form" />
+        <field name="arch" type="xml">
+            <header position="inside">
+                <button
+                    name="action_setup_notifications"
+                    string="Setup Notifications"
+                    type="object"
+                    class="btn-secondary"
+                    invisible="not aws_access_key_id or not sqs_queue_url"
+                />
+            </header>
+            <xpath expr="//group[@name='pricing_settings']" position="after">
+                <group name="repricing_settings" string="Real-Time Repricing (SQS)">
+                    <field name="notifications_enabled" />
+                    <field name="aws_access_key_id" password="True" />
+                    <field name="aws_secret_access_key" password="True" />
+                    <field name="aws_region" />
+                    <field name="sqs_queue_url" />
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>
