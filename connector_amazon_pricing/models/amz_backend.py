@@ -5,6 +5,9 @@ from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
 
+# Amazon GetCompetitivePricing accepts up to 20 ASINs per request.
+_COMPETITIVE_PRICE_BATCH = 20
+
 
 class AmazonBackend(models.Model):
     _inherit = "amz.backend"
@@ -101,6 +104,22 @@ class AmazonBackend(models.Model):
             },
         }
 
+    def action_sync_competitive_prices(self):
+        """Queue a competitive price pull job for this backend."""
+        self.ensure_one()
+        self.with_delay(
+            description=f"Pull competitive prices for {self.name}"
+        )._sync_competitive_prices()
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": "Sync Queued",
+                "message": "Competitive price pull has been queued.",
+                "type": "info",
+            },
+        }
+
     def action_push_prices(self):
         """Queue a price push job for all active listings."""
         self.ensure_one()
@@ -180,20 +199,122 @@ class AmazonBackend(models.Model):
             },
         )
 
+    def _sync_competitive_prices(self):
+        """Pull buy-box prices from Amazon ProductPricing API and update amz.listing."""
+        self.ensure_one()
+        from sp_api.api import ProductPricing
+
+        api = self._get_api(ProductPricing)
+        listings = self.amz_listing_ids.filtered(lambda lst: lst.active and lst.asin)
+        if not listings:
+            return
+
+        updated = 0
+        for i in range(0, len(listings), _COMPETITIVE_PRICE_BATCH):
+            batch = listings[i : i + _COMPETITIVE_PRICE_BATCH]
+            try:
+                result = api.get_competitive_pricing(
+                    asin_list=batch.mapped("asin"),
+                    item_type="Asin",
+                    marketplaceIds=[self.marketplace_id],
+                )
+                for item in result.payload:
+                    asin = item.get("ASIN")
+                    competitive_prices = (
+                        item.get("Product", {})
+                        .get("CompetitivePricing", {})
+                        .get("CompetitivePrices", [])
+                    )
+                    # CompetitivePriceId "1" = buy box winner
+                    buy_box = next(
+                        (
+                            p
+                            for p in competitive_prices
+                            if p.get("CompetitivePriceId") == "1"
+                        ),
+                        None,
+                    )
+                    if not buy_box:
+                        continue
+                    amount = float(
+                        buy_box.get("Price", {})
+                        .get("ListingPrice", {})
+                        .get("Amount", 0)
+                    )
+                    listing = batch.filtered(lambda lst, a=asin: lst.asin == a)
+                    if not listing:
+                        continue
+                    listing.write(
+                        {
+                            "buy_box_price": amount,
+                            "buy_box_winner": (
+                                "us"
+                                if buy_box.get("belongsToRequester")
+                                else "competitor"
+                            ),
+                            "last_price_pull_date": fields.Datetime.now(),
+                        }
+                    )
+                    updated += 1
+            except Exception as exc:
+                _logger.warning(
+                    "competitive price pull failed for backend %s: %s", self.name, exc
+                )
+
+        _logger.info(
+            "updated buy-box prices for %d listing(s) on backend %s",
+            updated,
+            self.name,
+        )
+        self.last_price_sync_date = fields.Datetime.now()
+
     def _compute_listing_price(self, listing):
         """Return target price for a listing based on pricing_mode."""
         if self.pricing_mode == "pricelist":
             if not self.pricelist_id:
                 return None
             return self.pricelist_id._get_product_price(listing.product_id, 1.0)
+        if self.pricing_mode == "competitive":
+            return self._compute_competitive_price(listing)
         return None
+
+    def _compute_competitive_price(self, listing):
+        """Return competitive target price, clamped to cost+floor."""
+        if not listing.buy_box_price:
+            return None
+
+        if self.competitive_rule == "match_buy_box":
+            target = listing.buy_box_price
+        elif self.competitive_rule == "undercut_buy_box":
+            target = listing.buy_box_price * (
+                1.0 - self.competitive_undercut_pct / 100.0
+            )
+        else:
+            # floor_cost_plus — compete at buy box, floor prevents below-cost sales
+            target = listing.buy_box_price
+
+        # Apply floor to all rules: never price below cost + floor margin.
+        # If buy box is below floor, price at floor rather than matching.
+        cost = listing.product_id.standard_price
+        if cost:
+            floor = cost * (1.0 + self.competitive_floor_margin_pct / 100.0)
+            target = max(target, floor)
+
+        return target
 
     def sync_prices(self):
         """Full price sync cycle. Called by cron or manual trigger."""
         for backend in self.filtered("price_push_enabled"):
             backend.with_delay(
-                description=f"Push prices for {backend.name}"
-            )._push_prices()
+                description=f"Sync prices for {backend.name}"
+            )._do_sync_prices()
+
+    def _do_sync_prices(self):
+        """Pull competitive prices then push in a single job (preserves ordering)."""
+        self.ensure_one()
+        if self.pricing_mode == "competitive":
+            self._sync_competitive_prices()
+        self._push_prices()
 
     def _import_order(self, amazon_order_id):
         """Auto-create amz.listing for any new SKUs seen in the imported order."""

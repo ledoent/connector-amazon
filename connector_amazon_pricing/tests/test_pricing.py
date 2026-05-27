@@ -311,3 +311,240 @@ class TestPricing(TransactionCase):
             self.assertFalse(listing)
         finally:
             self.product.default_code = AMZ_SKU
+
+
+_PRICING_MODULE = "odoo.addons.connector_amazon_pricing.models.amz_backend"
+
+SANDBOX_COMPETITIVE_PAYLOAD = [
+    {
+        "ASIN": AMZ_ASIN,
+        "Product": {
+            "CompetitivePricing": {
+                "CompetitivePrices": [
+                    {
+                        "CompetitivePriceId": "1",
+                        "Price": {
+                            "ListingPrice": {"Amount": "29.99", "CurrencyCode": "USD"},
+                            "ShippingPrice": {"Amount": "0.00", "CurrencyCode": "USD"},
+                        },
+                        "condition": "New",
+                        "belongsToRequester": False,
+                    }
+                ]
+            }
+        },
+    }
+]
+
+
+class TestCompetitivePricing(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.backend = cls.env["amz.backend"].create(
+            {
+                "name": "Test Competitive Backend",
+                "client_id": "test_client_id",
+                "client_secret": "test_secret",
+                "refresh_token": "test_token",
+                "marketplace_id": "ATVPDKIKX0DER",
+                "sandbox": True,
+                "warehouse_id": cls.env["stock.warehouse"].search([], limit=1).id,
+                "seller_id": "TEST_SELLER_ID",
+                "pricing_mode": "competitive",
+                "competitive_rule": "match_buy_box",
+                "competitive_undercut_pct": 2.0,
+                "competitive_floor_margin_pct": 15.0,
+                "price_push_enabled": True,
+            }
+        )
+        cls.product = cls.env["product.product"].create(
+            {
+                "name": "Competitive Test Product",
+                "default_code": AMZ_SKU,
+                "standard_price": 10.0,
+            }
+        )
+        cls.listing = cls.env["amz.listing"].create(
+            {
+                "backend_id": cls.backend.id,
+                "product_id": cls.product.id,
+                "seller_sku": AMZ_SKU,
+                "asin": AMZ_ASIN,
+            }
+        )
+
+    # ── _sync_competitive_prices ──────────────────────────────────────────────
+
+    @patch(
+        _PRICING_MODULE + ".ProductPricing",
+        create=True,
+    )
+    def test_sync_competitive_prices_updates_buy_box(self, mock_class):
+        api = MagicMock()
+        mock_class.return_value = api
+        resp = MagicMock()
+        resp.payload = SANDBOX_COMPETITIVE_PAYLOAD
+        api.get_competitive_pricing.return_value = resp
+
+        with patch.object(type(self.backend), "_get_api", return_value=api):
+            self.backend._sync_competitive_prices()
+
+        self.listing.invalidate_recordset()
+        self.assertAlmostEqual(self.listing.buy_box_price, 29.99)
+        self.assertEqual(self.listing.buy_box_winner, "competitor")
+
+    @patch(
+        _PRICING_MODULE + ".ProductPricing",
+        create=True,
+    )
+    def test_sync_competitive_prices_marks_us_as_winner(self, mock_class):
+        api = MagicMock()
+        mock_class.return_value = api
+        payload = [
+            {
+                "ASIN": AMZ_ASIN,
+                "Product": {
+                    "CompetitivePricing": {
+                        "CompetitivePrices": [
+                            {
+                                "CompetitivePriceId": "1",
+                                "Price": {
+                                    "ListingPrice": {
+                                        "Amount": "25.00",
+                                        "CurrencyCode": "USD",
+                                    }
+                                },
+                                "belongsToRequester": True,
+                            }
+                        ]
+                    }
+                },
+            }
+        ]
+        resp = MagicMock()
+        resp.payload = payload
+        api.get_competitive_pricing.return_value = resp
+
+        with patch.object(type(self.backend), "_get_api", return_value=api):
+            self.backend._sync_competitive_prices()
+
+        self.listing.invalidate_recordset()
+        self.assertEqual(self.listing.buy_box_winner, "us")
+
+    @patch(
+        _PRICING_MODULE + ".ProductPricing",
+        create=True,
+    )
+    def test_sync_competitive_prices_batches_by_20(self, mock_class):
+        api = MagicMock()
+        mock_class.return_value = api
+        resp = MagicMock()
+        resp.payload = []
+        api.get_competitive_pricing.return_value = resp
+
+        # Create 21 extra listings so we cross the batch boundary
+        extra_listings = self.env["amz.listing"]
+        extra_products = self.env["product.product"]
+        for idx in range(21):
+            prod = self.env["product.product"].create(
+                {"name": f"Batch Prod {idx}", "default_code": f"BATCHSKU{idx}"}
+            )
+            extra_products |= prod
+            lst = self.env["amz.listing"].create(
+                {
+                    "backend_id": self.backend.id,
+                    "product_id": prod.id,
+                    "seller_sku": f"BATCHSKU{idx}",
+                    "asin": f"B00BATCH{idx:04d}",
+                }
+            )
+            extra_listings |= lst
+
+        with patch.object(type(self.backend), "_get_api", return_value=api):
+            self.backend._sync_competitive_prices()
+
+        self.assertEqual(api.get_competitive_pricing.call_count, 2)
+        extra_listings.unlink()
+        extra_products.unlink()
+
+    @patch(
+        _PRICING_MODULE + ".ProductPricing",
+        create=True,
+    )
+    def test_sync_competitive_prices_skips_listing_without_asin(self, mock_class):
+        api = MagicMock()
+        mock_class.return_value = api
+
+        self.listing.asin = False
+        try:
+            with patch.object(type(self.backend), "_get_api", return_value=api):
+                self.backend._sync_competitive_prices()
+            api.get_competitive_pricing.assert_not_called()
+        finally:
+            self.listing.asin = AMZ_ASIN
+
+    # ── _compute_competitive_price ────────────────────────────────────────────
+
+    def test_compute_competitive_price_match_buy_box(self):
+        self.backend.competitive_rule = "match_buy_box"
+        self.listing.buy_box_price = 50.0
+        price = self.backend._compute_competitive_price(self.listing)
+        self.assertAlmostEqual(price, 50.0)
+
+    def test_compute_competitive_price_undercut(self):
+        self.backend.competitive_rule = "undercut_buy_box"
+        self.backend.competitive_undercut_pct = 2.0
+        self.listing.buy_box_price = 100.0
+        price = self.backend._compute_competitive_price(self.listing)
+        self.assertAlmostEqual(price, 98.0)
+
+    def test_compute_competitive_price_floor_clamps(self):
+        self.backend.competitive_rule = "undercut_buy_box"
+        self.backend.competitive_undercut_pct = 50.0
+        self.backend.competitive_floor_margin_pct = 15.0
+        self.listing.buy_box_price = 10.0
+        self.product.standard_price = 10.0
+        price = self.backend._compute_competitive_price(self.listing)
+        # undercut = 5.0, floor = 10 * 1.15 = 11.5
+        self.assertAlmostEqual(price, 11.5)
+
+    def test_compute_competitive_price_returns_none_without_buy_box(self):
+        self.listing.buy_box_price = 0.0
+        price = self.backend._compute_competitive_price(self.listing)
+        self.assertIsNone(price)
+
+    # ── _do_sync_prices / sync ordering ──────────────────────────────────────
+
+    def test_do_sync_prices_pulls_before_pushing(self):
+        call_order = []
+
+        def fake_pull(self_inner):
+            call_order.append("pull")
+
+        def fake_push(self_inner):
+            call_order.append("push")
+
+        with (
+            patch.object(type(self.backend), "_sync_competitive_prices", fake_pull),
+            patch.object(type(self.backend), "_push_prices", fake_push),
+        ):
+            self.backend._do_sync_prices()
+
+        self.assertEqual(call_order, ["pull", "push"])
+
+    def test_do_sync_prices_skips_pull_for_pricelist_mode(self):
+        self.backend.pricing_mode = "pricelist"
+        called_pull = []
+
+        def fake_pull(self_inner):
+            called_pull.append(True)
+
+        with (
+            patch.object(type(self.backend), "_sync_competitive_prices", fake_pull),
+            patch.object(type(self.backend), "_push_prices", lambda s: None),
+        ):
+            self.backend._do_sync_prices()
+
+        self.assertFalse(called_pull)
+        self.backend.pricing_mode = "competitive"
