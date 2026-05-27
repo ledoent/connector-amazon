@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_amz_listing_list" model="ir.ui.view">
+        <field name="name">amz.listing.list</field>
+        <field name="model">amz.listing</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="seller_sku" />
+                <field name="asin" />
+                <field name="product_id" />
+                <field name="current_list_price" />
+                <field name="buy_box_price" />
+                <field name="computed_target_price" />
+                <field name="last_price_push_date" />
+                <field name="active" column_invisible="True" />
+            </list>
+        </field>
+    </record>
+
+    <record id="view_amz_listing_form" model="ir.ui.view">
+        <field name="name">amz.listing.form</field>
+        <field name="model">amz.listing</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <group name="listing_info" string="Listing">
+                            <field name="backend_id" />
+                            <field name="product_id" />
+                            <field name="seller_sku" />
+                            <field name="asin" />
+                            <field name="active" />
+                        </group>
+                        <group name="pricing_info" string="Pricing">
+                            <field name="currency_id" invisible="1" />
+                            <field name="current_list_price" />
+                            <field name="buy_box_price" />
+                            <field name="buy_box_winner" />
+                            <field name="computed_target_price" />
+                            <field name="last_price_pull_date" />
+                            <field name="last_price_push_date" />
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_amz_listing" model="ir.actions.act_window">
+        <field name="name">Amazon Listings</field>
+        <field name="res_model">amz.listing</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem
+        id="menu_amz_listings"
+        name="Listings"
+        parent="connector_amazon.menu_amz_root"
+        action="action_amz_listing"
+        sequence="20"
+        groups="connector_amazon.group_amz_user"
+    />
+</odoo>

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_amz_backend_form_pricing" model="ir.ui.view">
+        <field name="name">amz.backend.form.pricing</field>
+        <field name="model">amz.backend</field>
+        <field name="inherit_id" ref="connector_amazon.view_amz_backend_form" />
+        <field name="arch" type="xml">
+            <header position="inside">
+                <button
+                    name="action_import_listings"
+                    string="Import Listings"
+                    type="object"
+                    class="btn-secondary"
+                />
+                <button
+                    name="action_push_prices"
+                    string="Push Prices"
+                    type="object"
+                    class="btn-secondary"
+                    invisible="pricing_mode == 'manual'"
+                />
+            </header>
+            <xpath expr="//group[@name='import_settings']" position="after">
+                <group name="pricing_settings" string="Pricing">
+                    <field name="seller_id" />
+                    <field name="pricing_mode" />
+                    <field
+                        name="competitive_rule"
+                        invisible="pricing_mode != 'competitive'"
+                    />
+                    <field
+                        name="competitive_undercut_pct"
+                        invisible="competitive_rule != 'undercut_buy_box'"
+                    />
+                    <field
+                        name="competitive_floor_margin_pct"
+                        invisible="competitive_rule != 'floor_cost_plus'"
+                    />
+                    <field name="price_push_enabled" />
+                    <field name="last_price_sync_date" />
+                </group>
+            </xpath>
+            <xpath expr="//chatter" position="before">
+                <notebook>
+                    <page name="listings" string="Listings">
+                        <field name="amz_listing_ids">
+                            <list>
+                                <field name="seller_sku" />
+                                <field name="asin" />
+                                <field name="product_id" />
+                                <field name="current_list_price" />
+                                <field name="computed_target_price" />
+                                <field name="last_price_push_date" />
+                            </list>
+                        </field>
+                    </page>
+                </notebook>
+            </xpath>
+        </field>
+    </record>
+</odoo>
