@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 from odoo.tests.common import TransactionCase
+from odoo.tools import mute_logger
 
 from odoo.addons.connector_amazon.tests.common import (
     SANDBOX_GET_ORDER_ADDRESS_PAYLOAD,
@@ -70,7 +71,8 @@ class TestImportOrders(TransactionCase):
     @patch("sp_api.api.Orders")
     def test_import_order_creates_amz_order(self, mock_orders_class):
         self._mock_orders_api(mock_orders_class)
-        self.backend._import_order(AMZ_ORDER_ID)
+        with mute_logger("odoo.addons.connector_amazon_sale.models.sale_order"):
+            self.backend._import_order(AMZ_ORDER_ID)
 
         amz_order = self.env["amz.order"].search(
             [
@@ -84,8 +86,9 @@ class TestImportOrders(TransactionCase):
     @patch("sp_api.api.Orders")
     def test_import_order_idempotent(self, mock_orders_class):
         self._mock_orders_api(mock_orders_class)
-        self.backend._import_order(AMZ_ORDER_ID)
-        self.backend._import_order(AMZ_ORDER_ID)
+        with mute_logger("odoo.addons.connector_amazon_sale.models.sale_order"):
+            self.backend._import_order(AMZ_ORDER_ID)
+            self.backend._import_order(AMZ_ORDER_ID)
 
         amz_orders = self.env["amz.order"].search(
             [
@@ -100,7 +103,8 @@ class TestImportOrders(TransactionCase):
     @patch("sp_api.api.Orders")
     def test_import_order_creates_order_lines(self, mock_orders_class):
         self._mock_orders_api(mock_orders_class)
-        self.backend._import_order(AMZ_ORDER_ID)
+        with mute_logger("odoo.addons.connector_amazon_sale.models.sale_order"):
+            self.backend._import_order(AMZ_ORDER_ID)
 
         amz_order = self.env["amz.order"].search(
             [
@@ -117,7 +121,8 @@ class TestImportOrders(TransactionCase):
     @patch("sp_api.api.Orders")
     def test_import_order_creates_partner(self, mock_orders_class):
         self._mock_orders_api(mock_orders_class)
-        self.backend._import_order(AMZ_ORDER_ID)
+        with mute_logger("odoo.addons.connector_amazon_sale.models.sale_order"):
+            self.backend._import_order(AMZ_ORDER_ID)
 
         amz_order = self.env["amz.order"].search(
             [
@@ -133,7 +138,8 @@ class TestImportOrders(TransactionCase):
     def test_import_order_without_matching_product(self, mock_orders_class):
         """Order lines without a matching SKU are created as description-only lines."""
         self._mock_orders_api(mock_orders_class)
-        self.backend._import_order(AMZ_ORDER_ID)
+        with mute_logger("odoo.addons.connector_amazon_sale.models.sale_order"):
+            self.backend._import_order(AMZ_ORDER_ID)
 
         amz_order = self.env["amz.order"].search(
             [

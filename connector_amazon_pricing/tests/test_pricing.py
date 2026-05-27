@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 from odoo.tests.common import TransactionCase
+from odoo.tools import mute_logger
 
 from odoo.addons.connector_amazon.tests.common import (
     SANDBOX_GET_ORDER_ADDRESS_PAYLOAD,
@@ -128,7 +129,8 @@ class TestPricing(TransactionCase):
         }
         api_instance.search_listings_items.return_value = response
 
-        self.backend.action_import_listings()
+        with mute_logger("odoo.addons.connector_amazon_pricing.models.amz_backend"):
+            self.backend.action_import_listings()
 
         listing = self.env["amz.listing"].search(
             [("backend_id", "=", self.backend.id), ("seller_sku", "=", "NO_MATCH_SKU")]
@@ -223,7 +225,8 @@ class TestPricing(TransactionCase):
         )
         api_instance.patch_listings_item.side_effect = [Exception("API down"), None]
 
-        self.backend._push_prices()
+        with mute_logger("odoo.addons.connector_amazon_pricing.models.amz_backend"):
+            self.backend._push_prices()
 
         self.assertEqual(api_instance.patch_listings_item.call_count, 2)
         self.assertFalse(listing1.last_price_push_date)
@@ -289,7 +292,8 @@ class TestPricing(TransactionCase):
         # Remove the product's default_code so SKU won't match
         self.product.default_code = "SOMETHING_ELSE"
         try:
-            self.backend._import_order(AMZ_ORDER_ID)
+            with mute_logger("odoo.addons.connector_amazon_sale.models.sale_order"):
+                self.backend._import_order(AMZ_ORDER_ID)
 
             listing = self.env["amz.listing"].search(
                 [("backend_id", "=", self.backend.id), ("seller_sku", "=", AMZ_SKU)]
