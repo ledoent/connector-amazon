@@ -1,6 +1,6 @@
 import logging
 
-from odoo import _, fields, models
+from odoo import fields, models
 from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
@@ -48,7 +48,7 @@ class AmazonBackend(models.Model):
         self.ensure_one()
         if not self.seller_id:
             raise UserError(
-                _(
+                self.env._(
                     "Amazon Seller ID is required to import listings. "
                     "Set it in the Pricing section."
                 )
@@ -105,7 +105,7 @@ class AmazonBackend(models.Model):
         """Queue a price push job for all active listings."""
         self.ensure_one()
         if not self.seller_id:
-            raise UserError(_("Amazon Seller ID is required to push prices."))
+            raise UserError(self.env._("Amazon Seller ID is required to push prices."))
         self.with_delay(description=f"Push prices for {self.name}")._push_prices()
         return {
             "type": "ir.actions.client",

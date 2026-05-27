@@ -88,8 +88,9 @@ class TestTrackingPush(TransactionCase):
                 "sale_id": self.sale.id,
             }
         )
-        with patch.object(type(self.backend), "with_delay") as mock_delay, mute_logger(
-            "odoo.addons.connector_amazon_stock.models.amz_backend"
+        with (
+            patch.object(type(self.backend), "with_delay") as mock_delay,
+            mute_logger("odoo.addons.connector_amazon_stock.models.amz_backend"),
         ):
             picking._enqueue_amazon_tracking_push()
         mock_delay.assert_not_called()
