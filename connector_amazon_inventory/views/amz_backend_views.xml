@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_amz_backend_form_inventory" model="ir.ui.view">
+        <field name="name">amz.backend.form.inventory</field>
+        <field name="model">amz.backend</field>
+        <field name="inherit_id" ref="connector_amazon.view_amz_backend_form" />
+        <field name="arch" type="xml">
+            <header position="inside">
+                <button
+                    name="action_push_inventory"
+                    string="Push Inventory"
+                    type="object"
+                    class="btn-secondary"
+                    invisible="not inventory_sync_enabled"
+                />
+            </header>
+            <xpath expr="//group[@name='pricing_settings']" position="after">
+                <group name="inventory_settings" string="Inventory Sync">
+                    <field name="inventory_sync_enabled" />
+                    <field name="inventory_location_ids" widget="many2many_tags" />
+                    <field name="inventory_expose_ratio" />
+                    <field name="inventory_min_reserve" />
+                    <field name="last_inventory_sync_date" />
+                </group>
+            </xpath>
+            <xpath
+                expr="//field[@name='amz_listing_ids']/list/field[@name='last_price_push_date']"
+                position="after"
+            >
+                <field name="inventory_sync_enabled" optional="show" />
+                <field name="last_pushed_qty" optional="show" />
+                <field name="last_inventory_push_date" optional="show" />
+            </xpath>
+        </field>
+    </record>
+</odoo>
