@@ -4,6 +4,7 @@ from odoo import fields, models
 class AmazonSettlementGroup(models.Model):
     _name = "amz.settlement.group"
     _description = "Amazon Settlement Group"
+    _rec_name = "amazon_group_id"
     _order = "fund_transfer_date desc"
 
     backend_id = fields.Many2one(

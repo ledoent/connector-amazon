@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock, patch
 
+from odoo import fields
 from odoo.tests.common import TransactionCase
 from odoo.tools import mute_logger
 
@@ -281,6 +282,109 @@ class TestPayment(TransactionCase):
         )
         self.assertTrue(group)
         self.assertFalse(group.account_move_id)
+
+    # ── test 8: action_sync_settlements queues job ────────────────────────────
+
+    # ── test 9: last_settlement_sync_date updated ─────────────────────────────
+
+    def test_pull_settlements_updates_last_sync_date(self):
+        self.assertFalse(self.backend.last_settlement_sync_date)
+        api = _mock_finances_api({"FinancialEventGroupList": []}, {})
+
+        with patch.object(type(self.backend), "_get_api", return_value=api):
+            self.backend._pull_settlements()
+
+        self.backend.invalidate_recordset()
+        self.assertTrue(self.backend.last_settlement_sync_date)
+
+    # ── test 10: batch error resilience ──────────────────────────────────────
+
+    @mute_logger("odoo.addons.connector_amazon_payment.models.amz_backend")
+    def test_pull_settlements_continues_after_group_error(self):
+        """One failing group must not abort processing of subsequent groups."""
+        self._configure_backend()
+        good_data = {**SANDBOX_GROUP_DATA, "FinancialEventGroupId": "GOOD001"}
+        payload = {
+            "FinancialEventGroupList": [
+                {**SANDBOX_GROUP_DATA, "FinancialEventGroupId": "BAD001"},
+                good_data,
+            ]
+        }
+        api = _mock_finances_api(payload, SANDBOX_EVENTS_PAYLOAD)
+
+        original_process = type(self.backend)._process_settlement_group
+
+        def selective_fail(self_inner, inner_api, group_data):
+            if group_data.get("FinancialEventGroupId") == "BAD001":
+                raise ValueError("Simulated failure")
+            return original_process(self_inner, inner_api, group_data)
+
+        with patch.object(
+            type(self.backend), "_process_settlement_group", selective_fail
+        ):
+            with patch.object(type(self.backend), "_get_api", return_value=api):
+                self.backend._pull_settlements()
+
+        good = self.env["amz.settlement.group"].search(
+            [("backend_id", "=", self.backend.id), ("amazon_group_id", "=", "GOOD001")]
+        )
+        self.assertTrue(good)
+
+    # ── test 11: advertising account used for advertising events ──────────────
+
+    def test_create_settlement_entry_advertising_account(self):
+        """Advertising events must debit amazon_advertising_account_id when set."""
+        adv_account = self.env["account.account"].create(
+            {
+                "name": "Amazon Advertising Expense",
+                "code": "700100",
+                "account_type": "expense",
+            }
+        )
+        self._configure_backend()
+        self.backend.amazon_advertising_account_id = adv_account
+
+        usd = self.env.ref("base.USD")
+        group = self.env["amz.settlement.group"].create(
+            {
+                "backend_id": self.backend.id,
+                "amazon_group_id": "ADVGROUP001",
+                "processing_status": "Closed",
+                "fund_transfer_date": fields.Datetime.now(),
+                "original_total": 80.00,
+                "converted_total": 80.00,
+                "currency_id": usd.id,
+            }
+        )
+        # income=100, referral=-15, advertising=-5 → net=80 (balanced)
+        self.env["amz.financial.event"].create(
+            [
+                {
+                    "settlement_group_id": group.id,
+                    "event_type": "shipment",
+                    "amount": 100.00,
+                },
+                {
+                    "settlement_group_id": group.id,
+                    "event_type": "referral_fee",
+                    "amount": -15.00,
+                },
+                {
+                    "settlement_group_id": group.id,
+                    "event_type": "advertising",
+                    "amount": -5.00,
+                },
+            ]
+        )
+
+        self.backend._create_settlement_entry(group)
+
+        self.assertTrue(group.account_move_id)
+        adv_lines = group.account_move_id.line_ids.filtered(
+            lambda ln: ln.account_id == adv_account
+        )
+        self.assertTrue(adv_lines)
+        self.assertAlmostEqual(adv_lines.debit, 5.00, places=2)
 
     # ── test 8: action_sync_settlements queues job ────────────────────────────
 

@@ -168,13 +168,16 @@ class AmazonBackend(models.Model):
                         commission += amount
                     elif "FBA" in fee_type or "Fulfillment" in fee_type:
                         fba += amount
+            base = {
+                "settlement_group_id": group.id,
+                "amz_order_id": order_id,
+                "posted_date": posted_date,
+            }
             if principal:
                 Event.create(
                     {
-                        "settlement_group_id": group.id,
+                        **base,
                         "event_type": "shipment",
-                        "amz_order_id": order_id,
-                        "posted_date": posted_date,
                         "amount": principal,
                         "fee_description": "Principal",
                     }
@@ -182,10 +185,8 @@ class AmazonBackend(models.Model):
             if commission:
                 Event.create(
                     {
-                        "settlement_group_id": group.id,
+                        **base,
                         "event_type": "referral_fee",
-                        "amz_order_id": order_id,
-                        "posted_date": posted_date,
                         "amount": commission,
                         "fee_description": "Commission",
                     }
@@ -193,17 +194,15 @@ class AmazonBackend(models.Model):
             if fba:
                 Event.create(
                     {
-                        "settlement_group_id": group.id,
+                        **base,
                         "event_type": "fba_fee",
-                        "amz_order_id": order_id,
-                        "posted_date": posted_date,
                         "amount": fba,
                         "fee_description": "FBAFee",
                     }
                 )
 
     def _parse_refund_events(self, group, events):
-        """Aggregate Principal charges from RefundEvents (negative amounts)."""
+        """Aggregate Principal charges from RefundEvents."""
         Event = self.env["amz.financial.event"]
         for event in events:
             order_id = event.get("AmazonOrderId")
@@ -225,8 +224,10 @@ class AmazonBackend(models.Model):
                     }
                 )
 
-    def _parse_service_fee_events(self, group, events):
-        """Create one service_fee event per ServiceFeeEvent."""
+    def _parse_fee_events(
+        self, group, events, event_type, default_description, description_key=None
+    ):
+        """Create one financial event per fee event."""
         Event = self.env["amz.financial.event"]
         for event in events:
             posted_date = _parse_amz_dt(event.get("PostedDate"))
@@ -235,35 +236,28 @@ class AmazonBackend(models.Model):
                 for f in event.get("FeeList", [])
             )
             if total:
+                desc = (
+                    event.get(description_key, default_description)
+                    if description_key
+                    else default_description
+                )
                 Event.create(
                     {
                         "settlement_group_id": group.id,
-                        "event_type": "service_fee",
+                        "event_type": event_type,
                         "posted_date": posted_date,
                         "amount": total,
-                        "fee_description": event.get("FeeReason", "ServiceFee"),
+                        "fee_description": desc,
                     }
                 )
 
+    def _parse_service_fee_events(self, group, events):
+        """Create one service_fee event per ServiceFeeEvent."""
+        self._parse_fee_events(group, events, "service_fee", "ServiceFee", "FeeReason")
+
     def _parse_advertising_events(self, group, events):
         """Create one advertising event per AdvertisingFeeEvent."""
-        Event = self.env["amz.financial.event"]
-        for event in events:
-            posted_date = _parse_amz_dt(event.get("PostedDate"))
-            total = sum(
-                float(f.get("FeeAmount", {}).get("Amount", 0))
-                for f in event.get("FeeList", [])
-            )
-            if total:
-                Event.create(
-                    {
-                        "settlement_group_id": group.id,
-                        "event_type": "advertising",
-                        "posted_date": posted_date,
-                        "amount": total,
-                        "fee_description": "AdvertisingFee",
-                    }
-                )
+        self._parse_fee_events(group, events, "advertising", "AdvertisingFee")
 
     def _create_settlement_entry(self, group):
         """Generate a journal entry for a closed settlement group."""
@@ -276,8 +270,26 @@ class AmazonBackend(models.Model):
 
         events = group.financial_event_ids
         income = sum(e.amount for e in events if e.amount > 0)
-        expenses = abs(sum(e.amount for e in events if e.amount < 0))
+        adv_fees = abs(
+            sum(
+                e.amount
+                for e in events
+                if e.event_type == "advertising" and e.amount < 0
+            )
+        )
+        other_fees = abs(
+            sum(
+                e.amount
+                for e in events
+                if e.event_type != "advertising" and e.amount < 0
+            )
+        )
         net = group.converted_total
+        entry_date = (
+            group.fund_transfer_date.date()
+            if group.fund_transfer_date
+            else fields.Date.today()
+        )
 
         lines = []
         if income and self.amazon_income_account_id:
@@ -292,7 +304,7 @@ class AmazonBackend(models.Model):
                     },
                 )
             )
-        if expenses and self.amazon_fee_account_id:
+        if other_fees and self.amazon_fee_account_id:
             lines.append(
                 (
                     0,
@@ -300,10 +312,26 @@ class AmazonBackend(models.Model):
                     {
                         "account_id": self.amazon_fee_account_id.id,
                         "name": f"Amazon fees — {group.amazon_group_id}",
-                        "debit": expenses,
+                        "debit": other_fees,
                     },
                 )
             )
+        if adv_fees:
+            adv_account = (
+                self.amazon_advertising_account_id or self.amazon_fee_account_id
+            )
+            if adv_account:
+                lines.append(
+                    (
+                        0,
+                        0,
+                        {
+                            "account_id": adv_account.id,
+                            "name": f"Amazon advertising — {group.amazon_group_id}",
+                            "debit": adv_fees,
+                        },
+                    )
+                )
         lines.append(
             (
                 0,
@@ -321,7 +349,7 @@ class AmazonBackend(models.Model):
         move = self.env["account.move"].create(
             {
                 "journal_id": self.amazon_settlement_journal_id.id,
-                "date": group.fund_transfer_date or fields.Date.today(),
+                "date": entry_date,
                 "ref": f"Amazon Settlement {group.amazon_group_id}",
                 "line_ids": lines,
                 "move_type": "entry",
