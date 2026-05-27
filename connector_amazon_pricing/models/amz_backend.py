@@ -131,28 +131,7 @@ class AmazonBackend(models.Model):
             if price is None:
                 continue
             try:
-                api.patch_listings_item(
-                    sellerId=self.seller_id,
-                    sku=listing.seller_sku,
-                    marketplaceIds=[self.marketplace_id],
-                    body={
-                        "productType": "PRODUCT",
-                        "patches": [
-                            {
-                                "op": "replace",
-                                "path": "/attributes/purchasable_offer",
-                                "value": [
-                                    {
-                                        "currency": listing.currency_id.name or "USD",
-                                        "our_price": [
-                                            {"schedule": [{"value_with_tax": price}]}
-                                        ],
-                                    }
-                                ],
-                            }
-                        ],
-                    },
-                )
+                self._patch_listing_price_to_api(api, listing, price)
                 listing.write(
                     {
                         "current_list_price": price,
@@ -174,6 +153,31 @@ class AmazonBackend(models.Model):
             pushed,
             len(active_listings),
             self.name,
+        )
+
+    def _patch_listing_price_to_api(self, api, listing, price):
+        """Execute a single purchasable_offer PATCH via the Listings Items API."""
+        api.patch_listings_item(
+            sellerId=self.seller_id,
+            sku=listing.seller_sku,
+            marketplaceIds=[self.marketplace_id],
+            body={
+                "productType": "PRODUCT",
+                "patches": [
+                    {
+                        "op": "replace",
+                        "path": "/attributes/purchasable_offer",
+                        "value": [
+                            {
+                                "currency": listing.currency_id.name or "USD",
+                                "our_price": [
+                                    {"schedule": [{"value_with_tax": price}]}
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            },
         )
 
     def _compute_listing_price(self, listing):

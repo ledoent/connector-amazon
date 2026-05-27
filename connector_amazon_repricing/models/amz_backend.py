@@ -18,14 +18,17 @@ class AmazonBackend(models.Model):
     aws_region = fields.Char("AWS Region", default="us-east-1")
     sqs_queue_url = fields.Char(
         "SQS Queue URL",
-        readonly=True,
-        help="Set automatically by 'Setup Notifications'.",
+        help=(
+            "URL of the pre-provisioned SQS queue. "
+            "The queue must have the SP-API send policy attached."
+        ),
     )
     notifications_enabled = fields.Boolean("Real-Time Repricing", default=False)
 
     # ── SQS client ────────────────────────────────────────────────────────────
 
     def _get_sqs_client(self):
+        """Return an authenticated boto3 SQS client for this backend's region."""
         try:
             import boto3
         except ImportError as exc:
@@ -50,6 +53,10 @@ class AmazonBackend(models.Model):
         if not self.aws_access_key_id or not self.aws_secret_access_key:
             raise UserError(
                 self.env._("AWS credentials are required to set up notifications.")
+            )
+        if not self.sqs_queue_url:
+            raise UserError(
+                self.env._("SQS Queue URL is required to set up notifications.")
             )
 
         from sp_api.api import Notifications
@@ -148,23 +155,37 @@ class AmazonBackend(models.Model):
     # ── Notification parsing ──────────────────────────────────────────────────
 
     def _process_offer_notification(self, payload):
-        """Parse one ANY_OFFER_CHANGED payload and update the matching listing."""
+        """Parse one ANY_OFFER_CHANGED payload and update the matching listing.
+
+        Amazon payload structure (payloadVersion 1.0):
+          payload.AnyOfferChangedNotification.OfferChangeTrigger.ASIN
+          payload.AnyOfferChangedNotification.Summary.BuyBoxPrices[0].ListingPrice.Amount
+          payload.AnyOfferChangedNotification.Offers[].{SellerId, IsBuyBoxWinner}
+        """
         notification = payload.get("payload", {}).get("AnyOfferChangedNotification", {})
-        summary = notification.get("OfferChangeSummary", {})
-        asin = summary.get("ASIN")
+        asin = notification.get("OfferChangeTrigger", {}).get("ASIN")
         if not asin:
             return
 
-        buy_box_entry = summary.get("BuyBoxPrice")
-        if not buy_box_entry:
-            # No buy box winner — skip repricing but record the event
-            _logger.debug("no buy box winner in notification for ASIN %s", asin)
+        summary = notification.get("Summary", {})
+        buy_box_prices = summary.get("BuyBoxPrices", [])
+        if not buy_box_prices:
+            _logger.debug("no buy box prices in notification for ASIN %s", asin)
             return
 
-        buy_box_price = float(buy_box_entry.get("Amount", 0))
-        # IsBuyBoxWinner appears under BuyBoxEligibleOffers for our seller
-        our_offers = summary.get("BuyBoxEligibleOffers", {})
-        buy_box_winner = "us" if our_offers.get("IsBuyBoxWinner") else "competitor"
+        buy_box_price = float(
+            buy_box_prices[0].get("ListingPrice", {}).get("Amount", 0)
+        )
+
+        # Determine if our seller's offer currently holds the buy box.
+        offers = notification.get("Offers", [])
+        our_offer = next(
+            (o for o in offers if o.get("SellerId") == self.seller_id),
+            None,
+        )
+        buy_box_winner = (
+            "us" if our_offer and our_offer.get("IsBuyBoxWinner") else "competitor"
+        )
 
         listing = self.amz_listing_ids.filtered(lambda lst: lst.asin == asin)
         if not listing:
@@ -204,7 +225,8 @@ class AmazonBackend(models.Model):
             # floor_cost_plus — start from buy box, floor applied below
             target = listing.buy_box_price
 
-        # Never go below cost + floor margin
+        # Apply floor to ALL rules — protects margin even when matching buy box.
+        # If buy box is below floor, price at floor rather than matching.
         cost = listing.product_id.standard_price
         if cost:
             floor = cost * (1.0 + self.competitive_floor_margin_pct / 100.0)
@@ -234,28 +256,7 @@ class AmazonBackend(models.Model):
 
         api = self._get_api(ListingsItems)
         try:
-            api.patch_listings_item(
-                sellerId=self.seller_id,
-                sku=listing.seller_sku,
-                marketplaceIds=[self.marketplace_id],
-                body={
-                    "productType": "PRODUCT",
-                    "patches": [
-                        {
-                            "op": "replace",
-                            "path": "/attributes/purchasable_offer",
-                            "value": [
-                                {
-                                    "currency": listing.currency_id.name or "USD",
-                                    "our_price": [
-                                        {"schedule": [{"value_with_tax": price}]}
-                                    ],
-                                }
-                            ],
-                        }
-                    ],
-                },
-            )
+            self._patch_listing_price_to_api(api, listing, price)
             listing.write(
                 {
                     "current_list_price": price,
