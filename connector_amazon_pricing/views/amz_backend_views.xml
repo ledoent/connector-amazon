@@ -41,7 +41,7 @@
                     />
                     <field
                         name="competitive_floor_margin_pct"
-                        invisible="competitive_rule != 'floor_cost_plus'"
+                        invisible="pricing_mode != 'competitive'"
                     />
                     <field name="price_push_enabled" />
                     <field name="last_price_sync_date" />

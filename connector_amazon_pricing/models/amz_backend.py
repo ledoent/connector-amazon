@@ -202,9 +202,9 @@ class AmazonBackend(models.Model):
     def _sync_competitive_prices(self):
         """Pull buy-box prices from Amazon ProductPricing API and update amz.listing."""
         self.ensure_one()
-        from sp_api.api import ProductPricing
+        from sp_api.api import ProductsV0
 
-        api = self._get_api(ProductPricing)
+        api = self._get_api(ProductsV0)
         listings = self.amz_listing_ids.filtered(lambda lst: lst.active and lst.asin)
         if not listings:
             return
@@ -213,12 +213,13 @@ class AmazonBackend(models.Model):
         for i in range(0, len(listings), _COMPETITIVE_PRICE_BATCH):
             batch = listings[i : i + _COMPETITIVE_PRICE_BATCH]
             try:
-                result = api.get_competitive_pricing(
+                result = api.get_competitive_pricing_for_asins(
                     asin_list=batch.mapped("asin"),
-                    item_type="Asin",
-                    marketplaceIds=[self.marketplace_id],
+                    MarketplaceId=self.marketplace_id,
                 )
                 for item in result.payload:
+                    if item.get("status") != "Success":
+                        continue
                     asin = item.get("ASIN")
                     competitive_prices = (
                         item.get("Product", {})

@@ -313,11 +313,10 @@ class TestPricing(TransactionCase):
             self.product.default_code = AMZ_SKU
 
 
-_PRICING_MODULE = "odoo.addons.connector_amazon_pricing.models.amz_backend"
-
 SANDBOX_COMPETITIVE_PAYLOAD = [
     {
         "ASIN": AMZ_ASIN,
+        "status": "Success",
         "Product": {
             "CompetitivePricing": {
                 "CompetitivePrices": [
@@ -335,6 +334,15 @@ SANDBOX_COMPETITIVE_PAYLOAD = [
         },
     }
 ]
+
+
+def _mock_competitive_api(test_case, payload):
+    """Return a mock ProductsV0 api pre-configured with the given payload."""
+    api = MagicMock()
+    resp = MagicMock()
+    resp.payload = payload
+    api.get_competitive_pricing_for_asins.return_value = resp
+    return api
 
 
 class TestCompetitivePricing(TransactionCase):
@@ -376,34 +384,19 @@ class TestCompetitivePricing(TransactionCase):
 
     # ── _sync_competitive_prices ──────────────────────────────────────────────
 
-    @patch(
-        _PRICING_MODULE + ".ProductPricing",
-        create=True,
-    )
-    def test_sync_competitive_prices_updates_buy_box(self, mock_class):
-        api = MagicMock()
-        mock_class.return_value = api
-        resp = MagicMock()
-        resp.payload = SANDBOX_COMPETITIVE_PAYLOAD
-        api.get_competitive_pricing.return_value = resp
-
+    def test_sync_competitive_prices_updates_buy_box(self):
+        api = _mock_competitive_api(self, SANDBOX_COMPETITIVE_PAYLOAD)
         with patch.object(type(self.backend), "_get_api", return_value=api):
             self.backend._sync_competitive_prices()
-
         self.listing.invalidate_recordset()
         self.assertAlmostEqual(self.listing.buy_box_price, 29.99)
         self.assertEqual(self.listing.buy_box_winner, "competitor")
 
-    @patch(
-        _PRICING_MODULE + ".ProductPricing",
-        create=True,
-    )
-    def test_sync_competitive_prices_marks_us_as_winner(self, mock_class):
-        api = MagicMock()
-        mock_class.return_value = api
+    def test_sync_competitive_prices_marks_us_as_winner(self):
         payload = [
             {
                 "ASIN": AMZ_ASIN,
+                "status": "Success",
                 "Product": {
                     "CompetitivePricing": {
                         "CompetitivePrices": [
@@ -422,28 +415,15 @@ class TestCompetitivePricing(TransactionCase):
                 },
             }
         ]
-        resp = MagicMock()
-        resp.payload = payload
-        api.get_competitive_pricing.return_value = resp
-
+        api = _mock_competitive_api(self, payload)
         with patch.object(type(self.backend), "_get_api", return_value=api):
             self.backend._sync_competitive_prices()
-
         self.listing.invalidate_recordset()
         self.assertEqual(self.listing.buy_box_winner, "us")
 
-    @patch(
-        _PRICING_MODULE + ".ProductPricing",
-        create=True,
-    )
-    def test_sync_competitive_prices_batches_by_20(self, mock_class):
-        api = MagicMock()
-        mock_class.return_value = api
-        resp = MagicMock()
-        resp.payload = []
-        api.get_competitive_pricing.return_value = resp
+    def test_sync_competitive_prices_batches_by_20(self):
+        api = _mock_competitive_api(self, [])
 
-        # Create 21 extra listings so we cross the batch boundary
         extra_listings = self.env["amz.listing"]
         extra_products = self.env["product.product"]
         for idx in range(21):
@@ -464,25 +444,69 @@ class TestCompetitivePricing(TransactionCase):
         with patch.object(type(self.backend), "_get_api", return_value=api):
             self.backend._sync_competitive_prices()
 
-        self.assertEqual(api.get_competitive_pricing.call_count, 2)
+        self.assertEqual(api.get_competitive_pricing_for_asins.call_count, 2)
         extra_listings.unlink()
         extra_products.unlink()
 
-    @patch(
-        _PRICING_MODULE + ".ProductPricing",
-        create=True,
-    )
-    def test_sync_competitive_prices_skips_listing_without_asin(self, mock_class):
-        api = MagicMock()
-        mock_class.return_value = api
-
+    def test_sync_competitive_prices_skips_listing_without_asin(self):
+        api = _mock_competitive_api(self, [])
         self.listing.asin = False
         try:
             with patch.object(type(self.backend), "_get_api", return_value=api):
                 self.backend._sync_competitive_prices()
-            api.get_competitive_pricing.assert_not_called()
+            api.get_competitive_pricing_for_asins.assert_not_called()
         finally:
             self.listing.asin = AMZ_ASIN
+
+    def test_sync_competitive_prices_skips_non_success_items(self):
+        """Items with status != 'Success' must not update listing."""
+        payload = [{"ASIN": AMZ_ASIN, "status": "ClientError"}]
+        api = _mock_competitive_api(self, payload)
+        self.listing.buy_box_price = 5.0
+        with patch.object(type(self.backend), "_get_api", return_value=api):
+            self.backend._sync_competitive_prices()
+        self.listing.invalidate_recordset()
+        self.assertAlmostEqual(self.listing.buy_box_price, 5.0)
+
+    def test_sync_competitive_prices_continues_after_batch_error(self):
+        """An API error on one batch must not prevent subsequent batches."""
+        api = MagicMock()
+        api.get_competitive_pricing_for_asins.side_effect = [
+            Exception("network error"),
+            MagicMock(payload=[]),
+        ]
+        extra_listings = self.env["amz.listing"]
+        extra_products = self.env["product.product"]
+        for idx in range(21):
+            prod = self.env["product.product"].create(
+                {"name": f"ErrProd {idx}", "default_code": f"ERRSKU{idx}"}
+            )
+            extra_products |= prod
+            lst = self.env["amz.listing"].create(
+                {
+                    "backend_id": self.backend.id,
+                    "product_id": prod.id,
+                    "seller_sku": f"ERRSKU{idx}",
+                    "asin": f"B00ERR{idx:05d}",
+                }
+            )
+            extra_listings |= lst
+        with (
+            patch.object(type(self.backend), "_get_api", return_value=api),
+            mute_logger("odoo.addons.connector_amazon_pricing.models.amz_backend"),
+        ):
+            self.backend._sync_competitive_prices()
+        self.assertEqual(api.get_competitive_pricing_for_asins.call_count, 2)
+        extra_listings.unlink()
+        extra_products.unlink()
+
+    def test_sync_competitive_prices_updates_last_price_sync_date(self):
+        self.backend.last_price_sync_date = False
+        api = _mock_competitive_api(self, [])
+        with patch.object(type(self.backend), "_get_api", return_value=api):
+            self.backend._sync_competitive_prices()
+        self.backend.invalidate_recordset()
+        self.assertTrue(self.backend.last_price_sync_date)
 
     # ── _compute_competitive_price ────────────────────────────────────────────
 
@@ -508,6 +532,15 @@ class TestCompetitivePricing(TransactionCase):
         price = self.backend._compute_competitive_price(self.listing)
         # undercut = 5.0, floor = 10 * 1.15 = 11.5
         self.assertAlmostEqual(price, 11.5)
+
+    def test_compute_competitive_price_match_respects_floor(self):
+        self.backend.competitive_rule = "match_buy_box"
+        self.backend.competitive_floor_margin_pct = 20.0
+        self.listing.buy_box_price = 9.0
+        self.product.standard_price = 10.0
+        price = self.backend._compute_competitive_price(self.listing)
+        # buy box = 9.0 < floor = 10 * 1.20 = 12.0 → price at floor
+        self.assertAlmostEqual(price, 12.0)
 
     def test_compute_competitive_price_returns_none_without_buy_box(self):
         self.listing.buy_box_price = 0.0
@@ -548,3 +581,18 @@ class TestCompetitivePricing(TransactionCase):
 
         self.assertFalse(called_pull)
         self.backend.pricing_mode = "competitive"
+
+    def test_sync_prices_enqueues_only_for_price_push_enabled(self):
+        """sync_prices() cron must skip backends where price_push_enabled=False."""
+        self.backend.price_push_enabled = False
+        queued = []
+
+        def capturing_with_delay(self_inner, **kw):
+            queued.append(kw.get("description", ""))
+            return MagicMock()
+
+        with patch.object(type(self.backend), "with_delay", capturing_with_delay):
+            self.backend.sync_prices()
+
+        self.assertFalse(queued)
+        self.backend.price_push_enabled = True
