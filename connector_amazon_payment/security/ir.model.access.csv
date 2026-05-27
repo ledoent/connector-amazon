@@ -1,0 +1,5 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_amz_settlement_group_manager,amz.settlement.group manager,model_amz_settlement_group,connector_amazon.group_amz_manager,1,1,1,1
+access_amz_settlement_group_user,amz.settlement.group user,model_amz_settlement_group,connector_amazon.group_amz_user,1,0,0,0
+access_amz_financial_event_manager,amz.financial.event manager,model_amz_financial_event,connector_amazon.group_amz_manager,1,1,1,1
+access_amz_financial_event_user,amz.financial.event user,model_amz_financial_event,connector_amazon.group_amz_user,1,0,0,0
