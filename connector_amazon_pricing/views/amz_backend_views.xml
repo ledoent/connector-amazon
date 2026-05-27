@@ -13,6 +13,13 @@
                     class="btn-secondary"
                 />
                 <button
+                    name="action_sync_competitive_prices"
+                    string="Sync Competitive Prices"
+                    type="object"
+                    class="btn-secondary"
+                    invisible="pricing_mode != 'competitive'"
+                />
+                <button
                     name="action_push_prices"
                     string="Push Prices"
                     type="object"
@@ -34,7 +41,7 @@
                     />
                     <field
                         name="competitive_floor_margin_pct"
-                        invisible="competitive_rule != 'floor_cost_plus'"
+                        invisible="pricing_mode != 'competitive'"
                     />
                     <field name="price_push_enabled" />
                     <field name="last_price_sync_date" />
@@ -48,6 +55,8 @@
                                 <field name="seller_sku" />
                                 <field name="asin" />
                                 <field name="product_id" />
+                                <field name="buy_box_price" optional="show" />
+                                <field name="buy_box_winner" optional="show" />
                                 <field name="current_list_price" />
                                 <field name="computed_target_price" />
                                 <field name="last_price_push_date" />
