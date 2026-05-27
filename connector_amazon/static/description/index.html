@@ -379,18 +379,17 @@ ul.auto-toc {
 Login with Amazon (LWA) credentials.</p>
 <p>This base module provides:</p>
 <ul class="simple">
-<li><tt class="docutils literal">amz.backend</tt> — credential storage (LWA client ID/secret/refresh
-token), marketplace selection, and sandbox mode toggle.</li>
+<li><tt class="docutils literal">amz.backend</tt> — LWA credential storage, marketplace selection, and
+sandbox toggle.</li>
 <li><tt class="docutils literal">amz.order</tt> / <tt class="docutils literal">amz.order.line</tt> — staging models that mirror Amazon
-order data before it is mapped to <tt class="docutils literal">sale.order</tt>.</li>
-<li>A disabled cron template that polls <tt class="docutils literal">GetOrders</tt> on a 5-minute
-schedule.</li>
+order data before mapping to <tt class="docutils literal">sale.order</tt>.</li>
+<li>A disabled cron template that polls <tt class="docutils literal">GetOrders</tt> every 5 minutes.</li>
 </ul>
 <p>Companion modules:</p>
 <ul class="simple">
 <li><tt class="docutils literal">connector_amazon_sale</tt> — imports Amazon orders into <tt class="docutils literal">sale.order</tt>.</li>
-<li><tt class="docutils literal">connector_amazon_stock</tt> — pushes carrier tracking numbers back to
-Amazon via <tt class="docutils literal">ConfirmShipment</tt>.</li>
+<li><tt class="docutils literal">connector_amazon_stock</tt> — pushes carrier tracking numbers to Amazon
+via <tt class="docutils literal">ConfirmShipment</tt>.</li>
 </ul>
 <p><strong>Table of contents</strong></p>
 <div class="contents local topic" id="contents">
