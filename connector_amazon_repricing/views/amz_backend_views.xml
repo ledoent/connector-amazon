@@ -11,7 +11,7 @@
                     string="Setup Notifications"
                     type="object"
                     class="btn-secondary"
-                    invisible="not notifications_enabled"
+                    invisible="not aws_access_key_id or not sqs_queue_url"
                 />
             </header>
             <xpath expr="//group[@name='pricing_settings']" position="after">
