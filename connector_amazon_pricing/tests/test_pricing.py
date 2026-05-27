@@ -179,7 +179,9 @@ class TestPricing(TransactionCase):
         self.assertEqual(call_kwargs["sellerId"], "TEST_SELLER_ID")
         self.assertEqual(call_kwargs["sku"], AMZ_SKU)
         patches = call_kwargs["body"]["patches"]
-        price_val = patches[0]["value"][0]["our_price"][0]["schedule"][0]["value_with_tax"]
+        price_val = patches[0]["value"][0]["our_price"][0]["schedule"][0][
+            "value_with_tax"
+        ]
         self.assertAlmostEqual(price_val, 29.99, places=2)
 
     @patch("sp_api.api.ListingsItems")
@@ -218,10 +220,18 @@ class TestPricing(TransactionCase):
             }
         )
         listing1 = self.env["amz.listing"].create(
-            {"backend_id": self.backend.id, "product_id": self.product.id, "seller_sku": AMZ_SKU}
+            {
+                "backend_id": self.backend.id,
+                "product_id": self.product.id,
+                "seller_sku": AMZ_SKU,
+            }
         )
         listing2 = self.env["amz.listing"].create(
-            {"backend_id": self.backend.id, "product_id": product2.id, "seller_sku": "SKU_SECOND"}
+            {
+                "backend_id": self.backend.id,
+                "product_id": product2.id,
+                "seller_sku": "SKU_SECOND",
+            }
         )
         api_instance.patch_listings_item.side_effect = [Exception("API down"), None]
 

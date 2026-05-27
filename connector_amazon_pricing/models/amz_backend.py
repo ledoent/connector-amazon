@@ -1,6 +1,6 @@
 import logging
 
-from odoo import fields, models
+from odoo import _, fields, models
 from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
@@ -19,7 +19,6 @@ class AmazonBackend(models.Model):
             ("competitive", "Amazon Competitive Floor"),
             ("manual", "Manual / No Sync"),
         ],
-        string="Pricing Mode",
         default="pricelist",
     )
     competitive_rule = fields.Selection(
@@ -28,7 +27,6 @@ class AmazonBackend(models.Model):
             ("undercut_buy_box", "Undercut Buy Box by %"),
             ("floor_cost_plus", "Floor: Cost + Margin %"),
         ],
-        string="Competitive Rule",
         default="match_buy_box",
     )
     competitive_undercut_pct = fields.Float(
@@ -43,15 +41,17 @@ class AmazonBackend(models.Model):
     )
     price_push_enabled = fields.Boolean("Auto Price Push", default=False)
     last_price_sync_date = fields.Datetime("Last Price Sync", readonly=True)
-    amz_listing_ids = fields.One2many("amz.listing", "backend_id", string="Listings")
+    amz_listing_ids = fields.One2many("amz.listing", "backend_id")
 
     def action_import_listings(self):
         """Pull active listings from Amazon and create/update amz.listing records."""
         self.ensure_one()
         if not self.seller_id:
             raise UserError(
-                "Amazon Seller ID is required to import listings. "
-                "Set it in the Pricing section."
+                _(
+                    "Amazon Seller ID is required to import listings. "
+                    "Set it in the Pricing section."
+                )
             )
         from sp_api.api import ListingsItems
 
@@ -105,7 +105,7 @@ class AmazonBackend(models.Model):
         """Queue a price push job for all active listings."""
         self.ensure_one()
         if not self.seller_id:
-            raise UserError("Amazon Seller ID is required to push prices.")
+            raise UserError(_("Amazon Seller ID is required to push prices."))
         self.with_delay(description=f"Push prices for {self.name}")._push_prices()
         return {
             "type": "ir.actions.client",
@@ -145,11 +145,7 @@ class AmazonBackend(models.Model):
                                     {
                                         "currency": listing.currency_id.name or "USD",
                                         "our_price": [
-                                            {
-                                                "schedule": [
-                                                    {"value_with_tax": price}
-                                                ]
-                                            }
+                                            {"schedule": [{"value_with_tax": price}]}
                                         ],
                                     }
                                 ],

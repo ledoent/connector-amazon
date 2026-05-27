@@ -36,7 +36,6 @@ class AmazonListing(models.Model):
     buy_box_price = fields.Monetary()
     buy_box_winner = fields.Selection(
         [("us", "Us"), ("competitor", "Competitor")],
-        string="Buy Box Winner",
     )
     computed_target_price = fields.Monetary()
     last_price_pull_date = fields.Datetime(readonly=True)
