@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_amz_listing_form_inventory" model="ir.ui.view">
+        <field name="name">amz.listing.form.inventory</field>
+        <field name="model">amz.listing</field>
+        <field name="inherit_id" ref="connector_amazon_pricing.view_amz_listing_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//group[@name='pricing_info']" position="after">
+                <group string="Inventory">
+                    <field name="inventory_sync_enabled" />
+                    <field name="last_pushed_qty" />
+                    <field name="last_inventory_push_date" />
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>
