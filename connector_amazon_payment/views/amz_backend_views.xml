@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_amz_backend_form_payment" model="ir.ui.view">
+        <field name="name">amz.backend.form.payment</field>
+        <field name="model">amz.backend</field>
+        <field name="inherit_id" ref="connector_amazon.view_amz_backend_form" />
+        <field name="arch" type="xml">
+            <header position="inside">
+                <button
+                    name="action_sync_settlements"
+                    string="Sync Settlements"
+                    type="object"
+                    class="btn-secondary"
+                />
+            </header>
+            <xpath expr="//group[@name='import_settings']" position="after">
+                <group name="settlement_settings" string="Settlement Accounting">
+                    <field name="amazon_income_account_id" />
+                    <field name="amazon_fee_account_id" />
+                    <field name="amazon_advertising_account_id" />
+                    <field name="amazon_settlement_journal_id" />
+                    <field name="last_settlement_sync_date" />
+                </group>
+            </xpath>
+            <xpath expr="//chatter" position="before">
+                <notebook>
+                    <page name="settlements" string="Settlements">
+                        <field name="amz_settlement_group_ids">
+                            <list>
+                                <field name="amazon_group_id" />
+                                <field name="fund_transfer_date" />
+                                <field name="converted_total" />
+                                <field name="currency_id" optional="show" />
+                                <field name="account_move_id" />
+                            </list>
+                        </field>
+                    </page>
+                </notebook>
+            </xpath>
+        </field>
+    </record>
+</odoo>

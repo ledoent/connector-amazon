@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_amz_settlement_group_list" model="ir.ui.view">
+        <field name="name">amz.settlement.group.list</field>
+        <field name="model">amz.settlement.group</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="amazon_group_id" />
+                <field name="fund_transfer_date" />
+                <field name="original_total" />
+                <field name="converted_total" />
+                <field name="currency_id" optional="show" />
+                <field name="processing_status" optional="show" />
+                <field name="account_move_id" />
+            </list>
+        </field>
+    </record>
+
+    <record id="view_amz_settlement_group_form" model="ir.ui.view">
+        <field name="name">amz.settlement.group.form</field>
+        <field name="model">amz.settlement.group</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="amazon_group_id" />
+                            <field name="processing_status" />
+                            <field name="fund_transfer_date" />
+                        </group>
+                        <group>
+                            <field name="original_total" />
+                            <field name="converted_total" />
+                            <field name="currency_id" />
+                            <field name="account_move_id" />
+                        </group>
+                    </group>
+                    <notebook>
+                        <page name="events" string="Financial Events">
+                            <field name="financial_event_ids">
+                                <list>
+                                    <field name="event_type" />
+                                    <field name="amz_order_id" />
+                                    <field name="posted_date" />
+                                    <field name="fee_description" optional="show" />
+                                    <field name="amount" />
+                                    <field name="currency_id" optional="show" />
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+</odoo>
