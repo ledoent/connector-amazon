@@ -201,7 +201,8 @@ class TestRepricing(TransactionCase):
         self.listing.invalidate_recordset()
         self.assertAlmostEqual(self.listing.buy_box_price, 42.0)
 
-    def test_drain_sqs_deletes_even_on_parse_error(self):
+    def test_drain_sqs_does_not_delete_on_parse_error(self):
+        """Malformed messages must stay in queue (nack), not be deleted."""
         mock_sqs = MagicMock()
         mock_sqs.receive_message.side_effect = [
             {
@@ -222,10 +223,7 @@ class TestRepricing(TransactionCase):
         ):
             self.backend._drain_sqs_queue()
 
-        mock_sqs.delete_message.assert_called_once_with(
-            QueueUrl=self.backend.sqs_queue_url,
-            ReceiptHandle="rh-bad",
-        )
+        mock_sqs.delete_message.assert_not_called()
 
     # ── poll_offer_notifications (cron) ───────────────────────────────────────
 

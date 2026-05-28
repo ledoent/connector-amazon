@@ -386,6 +386,98 @@ class TestPayment(TransactionCase):
         self.assertTrue(adv_lines)
         self.assertAlmostEqual(adv_lines.debit, 5.00, places=2)
 
+    # ── test 12: unmodeled charges absorbed by adjustment line ────────────────
+
+    @mute_logger("odoo.addons.connector_amazon_payment.models.amz_backend")
+    def test_create_settlement_entry_balances_with_adjustment(self):
+        """When converted_total != modeled income - fees (e.g. tax/shipping not
+        modeled), the move must still balance and post via an adjustment line —
+        Odoo rejects unbalanced moves at create() time, so the gap is booked, not
+        dropped."""
+        self._configure_backend()
+        usd = self.env.ref("base.USD")
+        # income=100, fee=-15 → modeled net=85, but Amazon disbursed 95 (e.g.
+        # tax collected not modeled here) → 10.00 unclassified gap.
+        group = self.env["amz.settlement.group"].create(
+            {
+                "backend_id": self.backend.id,
+                "amazon_group_id": "UNBAL001",
+                "processing_status": "Closed",
+                "fund_transfer_date": fields.Datetime.now(),
+                "original_total": 95.00,
+                "converted_total": 95.00,
+                "currency_id": usd.id,
+            }
+        )
+        self.env["amz.financial.event"].create(
+            [
+                {
+                    "settlement_group_id": group.id,
+                    "event_type": "shipment",
+                    "amount": 100.00,
+                },
+                {
+                    "settlement_group_id": group.id,
+                    "event_type": "referral_fee",
+                    "amount": -15.00,
+                },
+            ]
+        )
+
+        # Must not raise even though the modeled components don't balance.
+        self.backend._create_settlement_entry(group)
+
+        move = group.account_move_id
+        self.assertTrue(move, "move must be created")
+        self.assertEqual(move.state, "posted")
+        self.assertAlmostEqual(
+            sum(move.line_ids.mapped("debit")),
+            sum(move.line_ids.mapped("credit")),
+            places=2,
+        )
+        adj = move.line_ids.filtered(lambda ln: "unclassified" in (ln.name or ""))
+        self.assertTrue(
+            adj, "the unclassified gap must be booked to an adjustment line"
+        )
+        self.assertAlmostEqual(adj.credit - adj.debit, 10.00, places=2)
+
+    # ── test 13: journal without default account → no entry ───────────────────
+
+    @mute_logger("odoo.addons.connector_amazon_payment.models.amz_backend")
+    def test_create_settlement_entry_skips_journal_without_default_account(self):
+        """A general journal with no default account must not crash; skip entry."""
+        no_acct_journal = self.env["account.journal"].create(
+            {"name": "No Default Acct", "type": "general", "code": "AMZNA"}
+        )
+        no_acct_journal.default_account_id = False
+        self.backend.write(
+            {
+                "amazon_settlement_journal_id": no_acct_journal.id,
+                "amazon_income_account_id": self.income_account.id,
+                "amazon_fee_account_id": self.fee_account.id,
+            }
+        )
+        usd = self.env.ref("base.USD")
+        group = self.env["amz.settlement.group"].create(
+            {
+                "backend_id": self.backend.id,
+                "amazon_group_id": "NOACCT001",
+                "processing_status": "Closed",
+                "converted_total": 85.00,
+                "currency_id": usd.id,
+            }
+        )
+        self.env["amz.financial.event"].create(
+            {
+                "settlement_group_id": group.id,
+                "event_type": "shipment",
+                "amount": 100.00,
+            }
+        )
+
+        self.backend._create_settlement_entry(group)
+        self.assertFalse(group.account_move_id)
+
     # ── test 8: action_sync_settlements queues job ────────────────────────────
 
     def test_action_sync_settlements_enqueues_job(self):

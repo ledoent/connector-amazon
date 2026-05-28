@@ -134,6 +134,10 @@ class AmazonBackend(models.Model):
             for msg in messages:
                 try:
                     self._process_offer_notification(json.loads(msg["Body"]))
+                    sqs.delete_message(
+                        QueueUrl=self.sqs_queue_url,
+                        ReceiptHandle=msg["ReceiptHandle"],
+                    )
                     processed += 1
                 except Exception as exc:
                     _logger.warning(
@@ -141,11 +145,6 @@ class AmazonBackend(models.Model):
                         msg.get("MessageId"),
                         self.name,
                         exc,
-                    )
-                finally:
-                    sqs.delete_message(
-                        QueueUrl=self.sqs_queue_url,
-                        ReceiptHandle=msg["ReceiptHandle"],
                     )
 
         _logger.info(
@@ -206,33 +205,6 @@ class AmazonBackend(models.Model):
             self._reprice_listing(listing)
 
     # ── Competitive repricing ─────────────────────────────────────────────────
-
-    def _compute_listing_price(self, listing):
-        """Extend base: implement competitive pricing modes."""
-        if self.pricing_mode != "competitive":
-            return super()._compute_listing_price(listing)
-
-        if not listing.buy_box_price:
-            return None
-
-        if self.competitive_rule == "match_buy_box":
-            target = listing.buy_box_price
-        elif self.competitive_rule == "undercut_buy_box":
-            target = listing.buy_box_price * (
-                1.0 - self.competitive_undercut_pct / 100.0
-            )
-        else:
-            # floor_cost_plus — start from buy box, floor applied below
-            target = listing.buy_box_price
-
-        # Apply floor to ALL rules — protects margin even when matching buy box.
-        # If buy box is below floor, price at floor rather than matching.
-        cost = listing.product_id.standard_price
-        if cost:
-            floor = cost * (1.0 + self.competitive_floor_margin_pct / 100.0)
-            target = max(target, floor)
-
-        return target
 
     def _reprice_listing(self, listing):
         """Compute and push a new price for a single listing if it has changed."""

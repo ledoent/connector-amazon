@@ -16,3 +16,7 @@ Features:
   per backend. Queue must be provisioned externally with the SP-API send
   policy attached.
 - Requires ``boto3`` (``pip install boto3``) for SQS polling.
+
+Messages that fail to parse are left on the queue (not deleted) so they can
+be retried, so configure a **dead-letter queue** with a ``maxReceiveCount``
+redrive policy on the source queue to shed permanently-malformed messages.
