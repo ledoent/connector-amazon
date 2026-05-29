@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <!-- Dedicated At-Risk Shipments list -->
+    <record id="view_amz_ship_risk_list" model="ir.ui.view">
+        <field name="name">amz.order.ship.risk.list</field>
+        <field name="model">amz.order</field>
+        <field name="arch" type="xml">
+            <list
+                default_order="latest_ship_date asc"
+                decoration-danger="ship_risk in ['overdue', 'blocked']"
+                decoration-warning="ship_risk == 'at_risk'"
+            >
+                <field name="amz_order_id" />
+                <field name="backend_id" optional="hide" />
+                <field name="amazon_status" />
+                <field name="latest_ship_date" />
+                <field name="ship_deadline_hours" />
+                <field
+                    name="ship_risk"
+                    widget="badge"
+                    decoration-danger="ship_risk in ['overdue', 'blocked']"
+                    decoration-warning="ship_risk == 'at_risk'"
+                    decoration-success="ship_risk == 'on_track'"
+                />
+                <field name="order_total" optional="show" />
+                <field name="sale_order_id" />
+            </list>
+        </field>
+    </record>
+
+    <record id="view_amz_ship_risk_search" model="ir.ui.view">
+        <field name="name">amz.order.ship.risk.search</field>
+        <field name="model">amz.order</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="amz_order_id" />
+                <field name="sale_order_id" />
+                <filter
+                    name="overdue"
+                    string="Overdue"
+                    domain="[('ship_risk', '=', 'overdue')]"
+                />
+                <filter
+                    name="blocked"
+                    string="Stock Blocked"
+                    domain="[('ship_risk', '=', 'blocked')]"
+                />
+                <filter
+                    name="at_risk"
+                    string="At Risk"
+                    domain="[('ship_risk', '=', 'at_risk')]"
+                />
+                <separator />
+                <filter
+                    name="on_track"
+                    string="On Track"
+                    domain="[('ship_risk', '=', 'on_track')]"
+                />
+                <group>
+                    <filter
+                        name="group_ship_risk"
+                        string="Ship Risk"
+                        context="{'group_by': 'ship_risk'}"
+                    />
+                    <filter
+                        name="group_backend"
+                        string="Backend"
+                        context="{'group_by': 'backend_id'}"
+                    />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_amz_ship_risk" model="ir.actions.act_window">
+        <field name="name">At-Risk Shipments</field>
+        <field name="res_model">amz.order</field>
+        <field name="view_mode">list,form</field>
+        <field
+            name="domain"
+        >[('ship_risk', 'in', ['overdue', 'blocked', 'at_risk'])]</field>
+        <field name="view_id" ref="view_amz_ship_risk_list" />
+        <field name="search_view_id" ref="view_amz_ship_risk_search" />
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiley_face">No shipments at risk.</p>
+            <p>
+                Merchant-fulfilled orders approaching their Amazon ship-by
+                cutoff — or blocked on stock — show up here.
+            </p>
+        </field>
+    </record>
+
+    <menuitem
+        id="menu_amz_ship_risk"
+        name="At-Risk Shipments"
+        parent="connector_amazon.menu_amz_sales"
+        action="action_amz_ship_risk"
+        sequence="20"
+        groups="connector_amazon.group_amz_user"
+    />
+
+    <!-- Surface ship-risk on the standard order list -->
+    <record id="view_amz_order_list_ship_risk" model="ir.ui.view">
+        <field name="name">amz.order.list.ship.risk</field>
+        <field name="model">amz.order</field>
+        <field name="inherit_id" ref="connector_amazon.view_amz_order_list" />
+        <field name="arch" type="xml">
+            <field name="amazon_status" position="after">
+                <field
+                    name="ship_risk"
+                    widget="badge"
+                    optional="show"
+                    decoration-danger="ship_risk in ['overdue', 'blocked']"
+                    decoration-warning="ship_risk == 'at_risk'"
+                />
+                <field name="latest_ship_date" optional="hide" />
+            </field>
+        </field>
+    </record>
+
+    <!-- Ship fields on the order form -->
+    <record id="view_amz_order_form_ship_risk" model="ir.ui.view">
+        <field name="name">amz.order.form.ship.risk</field>
+        <field name="model">amz.order</field>
+        <field name="inherit_id" ref="connector_amazon.view_amz_order_form" />
+        <field name="arch" type="xml">
+            <field name="last_update_date" position="after">
+                <field name="earliest_ship_date" />
+                <field name="latest_ship_date" />
+                <field name="ship_deadline_hours" />
+                <field
+                    name="ship_risk"
+                    widget="badge"
+                    decoration-danger="ship_risk in ['overdue', 'blocked']"
+                    decoration-warning="ship_risk == 'at_risk'"
+                    decoration-success="ship_risk == 'on_track'"
+                />
+            </field>
+        </field>
+    </record>
+
+    <!-- Backend settings -->
+    <record id="view_amz_backend_form_ship_risk" model="ir.ui.view">
+        <field name="name">amz.backend.form.ship.risk</field>
+        <field name="model">amz.backend</field>
+        <field name="inherit_id" ref="connector_amazon.view_amz_backend_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//chatter" position="before">
+                <group string="Shipping Risk">
+                    <field name="ship_risk_threshold_hours" />
+                    <field name="ship_risk_calendar_id" />
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>

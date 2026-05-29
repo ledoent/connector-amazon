@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="ir_cron_amz_update_ship_risk" model="ir.cron">
+        <field name="name">Amazon: Update Ship Risk</field>
+        <field name="model_id" ref="connector_amazon.model_amz_order" />
+        <field name="state">code</field>
+        <field
+            name="code"
+        >env["amz.order"].search([("fulfillment_channel", "=", "MFN"), ("amazon_status", "in", ["PendingAvailability", "Pending", "Unshipped", "PartiallyShipped"])])._update_ship_risk()</field>
+        <field name="interval_number">30</field>
+        <field name="interval_type">minutes</field>
+        <field name="active" eval="False" />
+    </record>
+</odoo>
