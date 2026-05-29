@@ -8,6 +8,10 @@ Features:
   fields (price, winner, pull timestamp).
 - **Competitive repricing** — three rules: match buy box, undercut by %,
   or floor at cost + margin. Floors prevent selling below cost.
+- **Competitor offer history** — every ``ANY_OFFER_CHANGED`` payload persists
+  one ``amz.offer.snapshot`` per offer (seller, price, buy-box winner, ours or
+  not), under **Amazon → Competitor Offers** — the basis for buy-box win-rate
+  analytics.
 - **Setup Notifications button** — registers the SQS destination and
   ``ANY_OFFER_CHANGED`` subscription with the SP-API Notifications API in
   one click.

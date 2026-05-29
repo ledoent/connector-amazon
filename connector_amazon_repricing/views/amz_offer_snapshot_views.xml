@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_amz_offer_snapshot_list" model="ir.ui.view">
+        <field name="name">amz.offer.snapshot.list</field>
+        <field name="model">amz.offer.snapshot</field>
+        <field name="arch" type="xml">
+            <list decoration-success="is_buy_box_winner" decoration-bf="is_own_offer">
+                <field name="date" />
+                <field name="backend_id" optional="show" />
+                <field name="asin" />
+                <field name="seller_id" />
+                <field name="price" />
+                <field name="is_own_offer" />
+                <field name="is_buy_box_winner" />
+                <field name="currency_id" optional="hide" />
+            </list>
+        </field>
+    </record>
+
+    <record id="view_amz_offer_snapshot_search" model="ir.ui.view">
+        <field name="name">amz.offer.snapshot.search</field>
+        <field name="model">amz.offer.snapshot</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="asin" />
+                <field name="seller_id" />
+                <field name="listing_id" />
+                <field name="backend_id" />
+                <filter
+                    name="own"
+                    string="Our Offers"
+                    domain="[('is_own_offer', '=', True)]"
+                />
+                <filter
+                    name="buy_box"
+                    string="Buy Box Winner"
+                    domain="[('is_buy_box_winner', '=', True)]"
+                />
+                <group>
+                    <filter
+                        name="group_listing"
+                        string="Listing"
+                        context="{'group_by': 'listing_id'}"
+                    />
+                    <filter
+                        name="group_seller"
+                        string="Seller"
+                        context="{'group_by': 'seller_id'}"
+                    />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_amz_offer_snapshot" model="ir.actions.act_window">
+        <field name="name">Competitor Offers</field>
+        <field name="res_model">amz.offer.snapshot</field>
+        <field name="view_mode">list</field>
+        <field name="search_view_id" ref="view_amz_offer_snapshot_search" />
+    </record>
+
+    <menuitem
+        id="menu_amz_offer_snapshot"
+        name="Competitor Offers"
+        parent="connector_amazon.menu_amz_root"
+        action="action_amz_offer_snapshot"
+        sequence="26"
+        groups="connector_amazon.group_amz_user"
+    />
+</odoo>

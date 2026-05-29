@@ -178,6 +178,49 @@ class TestPricing(TransactionCase):
         second_call_kwargs = api_instance.search_listings_items.call_args_list[1].kwargs
         self.assertEqual(second_call_kwargs.get("pageToken"), "tok_page2")
 
+    # ── price-history audit trail ─────────────────────────────────────────────
+
+    @patch("sp_api.api.ListingsItems")
+    def test_push_prices_logs_history(self, mock_listings_class):
+        api_instance = MagicMock()
+        mock_listings_class.return_value = api_instance
+        listing = self.env["amz.listing"].create(
+            {
+                "backend_id": self.backend.id,
+                "product_id": self.product.id,
+                "seller_sku": AMZ_SKU,
+                "current_list_price": 20.00,
+            }
+        )
+
+        self.backend._push_prices(trigger="manual")
+
+        hist = self.env["amz.price.history"].search([("listing_id", "=", listing.id)])
+        self.assertEqual(len(hist), 1)
+        self.assertEqual(hist.trigger, "manual")
+        self.assertAlmostEqual(hist.old_price, 20.00, places=2)
+        self.assertAlmostEqual(hist.new_price, 29.99, places=2)
+        self.assertEqual(hist.pricing_rule, "pricelist")
+
+    @patch("sp_api.api.ListingsItems")
+    def test_push_prices_no_log_when_unchanged(self, mock_listings_class):
+        """An unchanged price must not write a history row (no cron noise)."""
+        api_instance = MagicMock()
+        mock_listings_class.return_value = api_instance
+        listing = self.env["amz.listing"].create(
+            {
+                "backend_id": self.backend.id,
+                "product_id": self.product.id,
+                "seller_sku": AMZ_SKU,
+                "current_list_price": 29.99,  # already at the pricelist price
+            }
+        )
+
+        self.backend._push_prices(trigger="cron")
+
+        hist = self.env["amz.price.history"].search([("listing_id", "=", listing.id)])
+        self.assertFalse(hist, "unchanged push must not be logged")
+
     # ── _push_prices ─────────────────────────────────────────────────────────
 
     @patch("sp_api.api.ListingsItems")

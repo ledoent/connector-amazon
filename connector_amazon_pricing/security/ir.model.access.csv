@@ -1,3 +1,5 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_amz_listing_manager,amz.listing manager,model_amz_listing,connector_amazon.group_amz_manager,1,1,1,1
 access_amz_listing_user,amz.listing user,model_amz_listing,connector_amazon.group_amz_user,1,0,0,0
+access_amz_price_history_manager,amz.price.history manager,model_amz_price_history,connector_amazon.group_amz_manager,1,1,1,1
+access_amz_price_history_user,amz.price.history user,model_amz_price_history,connector_amazon.group_amz_user,1,0,0,0

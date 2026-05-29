@@ -14,6 +14,7 @@
         "security/ir.model.access.csv",
         "data/ir_cron.xml",
         "views/amz_listing_views.xml",
+        "views/amz_price_history_views.xml",
         "views/amz_backend_views.xml",
     ],
     "maintainers": ["dnplkndll"],

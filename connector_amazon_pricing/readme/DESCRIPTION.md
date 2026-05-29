@@ -12,3 +12,6 @@ Phase 1A features:
 - **Push Prices** button — pushes Odoo pricelist prices to Amazon via the
   Listings Items PATCH API.
 - Disabled cron template that syncs prices every 30 minutes.
+- **Price-push audit trail** — every price push is logged to ``amz.price.history``
+  (old → new price, pricing rule, trigger: manual / scheduled / offer
+  notification), visible per listing and under **Amazon → Price History**.
