@@ -37,3 +37,31 @@ class AmazonSettlementReconciliation(models.Model):
         related="settlement_group_id.currency_id",
         store=True,
     )
+
+    def action_open_invoice(self):
+        """Open the reconciled customer invoice."""
+        self.ensure_one()
+        if not self.invoice_id:
+            return False
+        return {
+            "type": "ir.actions.act_window",
+            "name": "Invoice",
+            "res_model": "account.move",
+            "res_id": self.invoice_id.id,
+            "view_mode": "form",
+            "target": "current",
+        }
+
+    def action_open_amazon_order(self):
+        """Open the linked Amazon order."""
+        self.ensure_one()
+        if not self.order_id:
+            return False
+        return {
+            "type": "ir.actions.act_window",
+            "name": "Amazon Order",
+            "res_model": "amz.order",
+            "res_id": self.order_id.id,
+            "view_mode": "form",
+            "target": "current",
+        }
