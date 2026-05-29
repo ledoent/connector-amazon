@@ -70,7 +70,7 @@
     <menuitem
         id="menu_amz_listings"
         name="Listings"
-        parent="connector_amazon.menu_amz_root"
+        parent="connector_amazon.menu_amz_pricing"
         action="action_amz_listing"
         sequence="20"
         groups="connector_amazon.group_amz_user"

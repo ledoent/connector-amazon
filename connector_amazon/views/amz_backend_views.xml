@@ -78,6 +78,34 @@
         groups="connector_amazon.group_amz_user"
     />
     <menuitem
+        id="menu_amz_sales"
+        name="Sales"
+        parent="menu_amz_root"
+        sequence="10"
+        groups="connector_amazon.group_amz_user"
+    />
+    <menuitem
+        id="menu_amz_pricing"
+        name="Pricing"
+        parent="menu_amz_root"
+        sequence="20"
+        groups="connector_amazon.group_amz_user"
+    />
+    <menuitem
+        id="menu_amz_fulfillment"
+        name="Fulfillment"
+        parent="menu_amz_root"
+        sequence="30"
+        groups="connector_amazon.group_amz_user"
+    />
+    <menuitem
+        id="menu_amz_finance"
+        name="Finance"
+        parent="menu_amz_root"
+        sequence="40"
+        groups="connector_amazon.group_amz_user"
+    />
+    <menuitem
         id="menu_amz_config"
         name="Configuration"
         parent="menu_amz_root"

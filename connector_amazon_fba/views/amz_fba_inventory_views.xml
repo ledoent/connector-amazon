@@ -81,7 +81,7 @@
     <menuitem
         id="menu_amz_fba_inventory"
         name="FBA Inventory"
-        parent="connector_amazon.menu_amz_root"
+        parent="connector_amazon.menu_amz_fulfillment"
         action="action_amz_fba_inventory"
         sequence="30"
         groups="connector_amazon.group_amz_user"

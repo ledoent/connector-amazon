@@ -97,7 +97,7 @@
     <menuitem
         id="menu_amz_returns"
         name="Returns"
-        parent="connector_amazon.menu_amz_root"
+        parent="connector_amazon.menu_amz_sales"
         action="action_amz_return"
         sequence="40"
     />

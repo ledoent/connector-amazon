@@ -67,7 +67,7 @@
     <menuitem
         id="menu_amz_price_history"
         name="Price History"
-        parent="connector_amazon.menu_amz_root"
+        parent="connector_amazon.menu_amz_pricing"
         action="action_amz_price_history"
         sequence="25"
         groups="connector_amazon.group_amz_user"

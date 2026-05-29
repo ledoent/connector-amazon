@@ -139,7 +139,7 @@
     <menuitem
         id="menu_amz_settlement_recon"
         name="Settlement Reconciliation"
-        parent="connector_amazon.menu_amz_root"
+        parent="connector_amazon.menu_amz_finance"
         action="action_amz_settlement_recon"
         sequence="60"
     />

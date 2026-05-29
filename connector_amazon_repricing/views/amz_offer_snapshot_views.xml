@@ -62,7 +62,7 @@
     <menuitem
         id="menu_amz_offer_snapshot"
         name="Competitor Offers"
-        parent="connector_amazon.menu_amz_root"
+        parent="connector_amazon.menu_amz_pricing"
         action="action_amz_offer_snapshot"
         sequence="26"
         groups="connector_amazon.group_amz_user"
