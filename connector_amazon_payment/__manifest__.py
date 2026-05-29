@@ -1,6 +1,6 @@
 {
     "name": "Amazon SP-API Connector: Settlements",
-    "version": "19.0.1.0.1",
+    "version": "19.0.1.0.2",
     "category": "Accounting/Accounting",
     "summary": "Pull Amazon settlement groups and generate Odoo journal entries",
     "author": "Ledo, Odoo Community Association (OCA)",

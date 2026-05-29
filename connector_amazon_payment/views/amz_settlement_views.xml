@@ -90,6 +90,70 @@
         </field>
     </record>
 
+    <record id="view_amz_settlement_recon_form" model="ir.ui.view">
+        <field name="name">amz.settlement.reconciliation.form</field>
+        <field name="model">amz.settlement.reconciliation</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button
+                            name="action_open_invoice"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-file-text-o"
+                            invisible="not invoice_id"
+                        >
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Open</span>
+                                <span class="o_stat_text">Invoice</span>
+                            </div>
+                        </button>
+                        <button
+                            name="action_open_amazon_order"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-amazon"
+                            invisible="not order_id"
+                        >
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Amazon</span>
+                                <span class="o_stat_text">Order</span>
+                            </div>
+                        </button>
+                    </div>
+                    <widget
+                        name="web_ribbon"
+                        title="Variance"
+                        bg_color="text-bg-danger"
+                        invisible="state != 'variance'"
+                    />
+                    <group>
+                        <group string="Match">
+                            <field name="settlement_group_id" />
+                            <field name="amz_order_id" />
+                            <field name="order_id" />
+                            <field name="invoice_id" />
+                            <field
+                                name="state"
+                                widget="badge"
+                                decoration-success="state == 'matched'"
+                                decoration-danger="state == 'variance'"
+                                decoration-muted="state == 'no_invoice'"
+                            />
+                        </group>
+                        <group string="Amounts">
+                            <field name="currency_id" invisible="1" />
+                            <field name="settled_principal" />
+                            <field name="invoiced_total" />
+                            <field name="variance" />
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
     <record id="view_amz_settlement_recon_search" model="ir.ui.view">
         <field name="name">amz.settlement.reconciliation.search</field>
         <field name="model">amz.settlement.reconciliation</field>
@@ -132,7 +196,7 @@
     <record id="action_amz_settlement_recon" model="ir.actions.act_window">
         <field name="name">Settlement Reconciliation</field>
         <field name="res_model">amz.settlement.reconciliation</field>
-        <field name="view_mode">list</field>
+        <field name="view_mode">list,form</field>
         <field name="search_view_id" ref="view_amz_settlement_recon_search" />
     </record>
 

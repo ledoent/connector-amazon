@@ -758,6 +758,27 @@ class TestPayment(TransactionCase):
         recon = group.reconciliation_ids
         self.assertEqual(recon.state, "no_invoice")
 
+    def test_reconciliation_open_invoice_action(self):
+        self._configure_backend()
+        self._make_order_with_invoice("REC-DRILL", 100.00)
+        group = self._settlement_for_order("RECG-D", "REC-DRILL", 100.00)
+        self.backend._reconcile_settlement(group)
+        recon = group.reconciliation_ids
+        self.assertTrue(recon.invoice_id)
+        action = recon.action_open_invoice()
+        self.assertEqual(action["res_model"], "account.move")
+        self.assertEqual(action["res_id"], recon.invoice_id.id)
+
+    def test_reconciliation_open_invoice_noop_without_invoice(self):
+        self._configure_backend()
+        self.env["amz.order"].create(
+            {"backend_id": self.backend.id, "amz_order_id": "REC-NOINV2"}
+        )
+        group = self._settlement_for_order("RECG-NI", "REC-NOINV2", 100.00)
+        self.backend._reconcile_settlement(group)
+        recon = group.reconciliation_ids
+        self.assertFalse(recon.action_open_invoice())
+
     def _post_invoice_for_order(self, amz_order, untaxed):
         sale = amz_order.sale_order_id
         sale_journal = self.env["account.journal"].search(
