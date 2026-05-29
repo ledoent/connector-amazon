@@ -1,6 +1,6 @@
 {
     "name": "Amazon SP-API Connector",
-    "version": "19.0.1.0.0",
+    "version": "19.0.1.0.1",
     "category": "Sales/Sales",
     "summary": "Base connector for Amazon Selling Partner API",
     "author": "Ledo, Odoo Community Association (OCA)",

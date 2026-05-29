@@ -1,6 +1,6 @@
 {
     "name": "Amazon SP-API Connector: Returns",
-    "version": "19.0.1.0.0",
+    "version": "19.0.1.0.1",
     "category": "Sales/Sales",
     "summary": "Ingest Amazon MFN returns, restock them, and issue credit notes",
     "author": "Ledo, Odoo Community Association (OCA)",

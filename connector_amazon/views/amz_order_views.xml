@@ -118,7 +118,7 @@
     <menuitem
         id="menu_amz_orders"
         name="Orders"
-        parent="connector_amazon.menu_amz_root"
+        parent="connector_amazon.menu_amz_sales"
         action="action_amz_order"
         sequence="10"
     />
