@@ -195,3 +195,85 @@ class TestImportOrders(TransactionCase):
         call_kwargs = api_instance.get_orders.call_args.kwargs
         self.assertEqual(call_kwargs.get("CreatedAfter"), "TEST_CASE_200")
         self.assertNotIn("LastUpdatedAfter", call_kwargs)
+
+    # ── Phase 2: opt-in auto-invoice ──────────────────────────────────────────
+
+    def _setup_invoiceable_product(self):
+        income = self.env["account.account"].create(
+            {"name": "Amz Income", "code": "ZIN100", "account_type": "income"}
+        )
+        if not self.env["account.journal"].search(
+            [("type", "=", "sale"), ("company_id", "=", self.env.company.id)], limit=1
+        ):
+            self.env["account.journal"].create(
+                {"name": "Sales", "type": "sale", "code": "ZSJ"}
+            )
+        product = self.env["product.product"].create(
+            {
+                "name": "Amazon Card Book",
+                "default_code": "NABetaASINB00551Q3CS",
+                "invoice_policy": "order",
+                "list_price": 25.0,
+            }
+        )
+        product.property_account_income_id = income
+        return product
+
+    @patch("sp_api.api.Orders")
+    def test_import_order_auto_invoice_on(self, mock_orders_class):
+        """amazon_auto_invoice=True → SO is confirmed and a posted invoice exists."""
+        self._mock_orders_api(mock_orders_class)
+        self._setup_invoiceable_product()
+        self.backend.amazon_auto_invoice = True
+
+        with mute_logger("odoo.addons.connector_amazon_sale.models.sale_order"):
+            self.backend._import_order(AMZ_ORDER_ID)
+
+        amz_order = self.env["amz.order"].search(
+            [("backend_id", "=", self.backend.id), ("amz_order_id", "=", AMZ_ORDER_ID)]
+        )
+        invoices = amz_order.sale_order_id.invoice_ids
+        self.assertTrue(invoices, "auto-invoice must create an invoice")
+        self.assertEqual(invoices[0].state, "posted")
+        self.assertEqual(invoices[0].move_type, "out_invoice")
+
+    @patch("sp_api.api.Orders")
+    def test_import_order_auto_invoice_off(self, mock_orders_class):
+        """Default (toggle off) → sale order only, no invoice."""
+        self._mock_orders_api(mock_orders_class)
+        self._setup_invoiceable_product()
+        self.assertFalse(self.backend.amazon_auto_invoice)
+
+        with mute_logger("odoo.addons.connector_amazon_sale.models.sale_order"):
+            self.backend._import_order(AMZ_ORDER_ID)
+
+        amz_order = self.env["amz.order"].search(
+            [("backend_id", "=", self.backend.id), ("amz_order_id", "=", AMZ_ORDER_ID)]
+        )
+        self.assertFalse(amz_order.sale_order_id.invoice_ids)
+
+    @patch("sp_api.api.Orders")
+    def test_import_order_auto_invoice_failure_non_fatal(self, mock_orders_class):
+        """A billing failure must be swallowed — the order still imports."""
+        self._mock_orders_api(mock_orders_class)
+        self._setup_invoiceable_product()
+        self.backend.amazon_auto_invoice = True
+
+        def boom(self_inner, *a, **kw):
+            raise ValueError("billing exploded")
+
+        with (
+            patch.object(
+                type(self.env["sale.order"]),
+                "_amazon_create_and_post_invoice",
+                boom,
+            ),
+            mute_logger("odoo.addons.connector_amazon_sale.models.amz_backend"),
+        ):
+            self.backend._import_order(AMZ_ORDER_ID)
+
+        amz_order = self.env["amz.order"].search(
+            [("backend_id", "=", self.backend.id), ("amz_order_id", "=", AMZ_ORDER_ID)]
+        )
+        self.assertTrue(amz_order, "order import must survive an auto-invoice failure")
+        self.assertTrue(amz_order.sale_order_id)

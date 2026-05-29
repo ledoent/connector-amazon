@@ -55,3 +55,30 @@ class SaleOrder(models.Model):
             env["sale.order.line"].create(line_vals)
 
         return sale_order
+
+    def _amazon_create_and_post_invoice(self, amazon_order_id):
+        """Confirm this Amazon order and create + post a customer invoice.
+
+        Amazon orders are already sold and (usually) shipped, so we confirm the
+        SO and invoice it immediately. Non-fatal: if nothing is invoiceable
+        (e.g. delivery invoice_policy with no processed picking) we log and skip,
+        and reconciliation reports the order as ``no_invoice``.
+        """
+        self.ensure_one()
+        if self.state not in ("sale", "done"):
+            self.action_confirm()
+        if self.invoice_ids.filtered(lambda m: m.move_type == "out_invoice"):
+            return  # already invoiced (idempotent)
+        if self.invoice_status != "to invoice":
+            _logger.info(
+                "Amazon order %s: nothing to invoice (invoice_status=%s); skipping.",
+                amazon_order_id,
+                self.invoice_status,
+            )
+            return
+        moves = self._create_invoices(final=True)
+        if not moves:
+            return
+        moves.write({"invoice_origin": f"Amazon {amazon_order_id}"})
+        moves.action_post()
+        return moves

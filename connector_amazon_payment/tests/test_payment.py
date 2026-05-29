@@ -53,6 +53,66 @@ SANDBOX_EVENTS_PAYLOAD = {
 }
 
 
+# Principal 100 + Tax 8 + Shipping 5 − Commission 15 − Promotion 3 − TaxWithheld 8
+# → seller nets 87 (= ConvertedTotal). Tax washes (8 collected − 8 withheld).
+MULTICHARGE_GROUP_DATA = {
+    "FinancialEventGroupId": "GROUPMC",
+    "ProcessingStatus": "Closed",
+    "OriginalTotal": {"CurrencyCode": "USD", "Amount": "87.00"},
+    "ConvertedTotal": {"CurrencyCode": "USD", "Amount": "87.00"},
+    "FundTransferDate": "2024-05-01T00:00:00Z",
+}
+MULTICHARGE_GROUPS_PAYLOAD = {"FinancialEventGroupList": [MULTICHARGE_GROUP_DATA]}
+MULTICHARGE_EVENTS_PAYLOAD = {
+    "FinancialEvents": {
+        "ShipmentEvents": [
+            {
+                "AmazonOrderId": "111-222-333",
+                "PostedDate": "2024-05-01T00:00:00Z",
+                "ShipmentItemList": [
+                    {
+                        "ItemChargeList": [
+                            {
+                                "ChargeType": "Principal",
+                                "ChargeAmount": {"Amount": "100.00"},
+                            },
+                            {"ChargeType": "Tax", "ChargeAmount": {"Amount": "8.00"}},
+                            {
+                                "ChargeType": "ShippingCharge",
+                                "ChargeAmount": {"Amount": "5.00"},
+                            },
+                        ],
+                        "ItemTaxWithheldList": [
+                            {
+                                "TaxCollectionModel": "MarketplaceFacilitator",
+                                "TaxesWithheld": [
+                                    {
+                                        "ChargeType": "MarketplaceFacilitatorTax",
+                                        "ChargeAmount": {"Amount": "-8.00"},
+                                    }
+                                ],
+                            }
+                        ],
+                        "ItemFeeList": [
+                            {"FeeType": "Commission", "FeeAmount": {"Amount": "-15.00"}}
+                        ],
+                        "PromotionList": [
+                            {
+                                "PromotionType": "Coupon",
+                                "PromotionAmount": {"Amount": "-3.00"},
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+        "RefundEvents": [],
+        "ServiceFeeEvents": [],
+        "AdvertisingFeeEvents": [],
+    }
+}
+
+
 def _mock_finances_api(groups_payload, events_payload):
     api = MagicMock()
 
@@ -107,6 +167,27 @@ class TestPayment(TransactionCase):
                 "account_type": "expense",
             }
         )
+        cls.tax_account = cls.env["account.account"].create(
+            {
+                "name": "Amazon Tax",
+                "code": "210100",
+                "account_type": "liability_current",
+            }
+        )
+        cls.shipping_account = cls.env["account.account"].create(
+            {
+                "name": "Amazon Shipping",
+                "code": "400200",
+                "account_type": "income",
+            }
+        )
+        cls.promotion_account = cls.env["account.account"].create(
+            {
+                "name": "Amazon Promotions",
+                "code": "400300",
+                "account_type": "income",
+            }
+        )
 
     def _configure_backend(self):
         self.backend.write(
@@ -114,6 +195,9 @@ class TestPayment(TransactionCase):
                 "amazon_settlement_journal_id": self.bank_journal.id,
                 "amazon_income_account_id": self.income_account.id,
                 "amazon_fee_account_id": self.fee_account.id,
+                "amazon_tax_account_id": self.tax_account.id,
+                "amazon_shipping_account_id": self.shipping_account.id,
+                "amazon_promotion_account_id": self.promotion_account.id,
             }
         )
 
@@ -496,3 +580,180 @@ class TestPayment(TransactionCase):
         self.assertIn("settlement", queued[0].lower())
         self.assertEqual(result["type"], "ir.actions.client")
         self.assertEqual(result["tag"], "display_notification")
+
+    # ── Phase 2: tax/shipping/promotion modeling ──────────────────────────────
+
+    def test_settlement_models_tax_shipping_promotion(self):
+        """Tax washes to zero; shipping → income CR; promotion → contra DR;
+        the unclassified adjustment is ~0 (not the whole tax+shipping gap)."""
+        self._configure_backend()
+        api = _mock_finances_api(MULTICHARGE_GROUPS_PAYLOAD, MULTICHARGE_EVENTS_PAYLOAD)
+        with patch.object(type(self.backend), "_get_api", return_value=api):
+            self.backend._pull_settlements()
+
+        group = self.env["amz.settlement.group"].search(
+            [("backend_id", "=", self.backend.id), ("amazon_group_id", "=", "GROUPMC")]
+        )
+        events = group.financial_event_ids
+        by_type = {e.event_type: e.amount for e in events}
+        # Tax collected (+8) and withheld (−8) net to zero → no tax event emitted.
+        self.assertNotIn("tax", by_type, "facilitator tax must wash to zero")
+        self.assertAlmostEqual(by_type["shipping"], 5.00, places=2)
+        self.assertAlmostEqual(by_type["promotion"], -3.00, places=2)
+        self.assertAlmostEqual(by_type["shipment"], 100.00, places=2)
+
+        move = group.account_move_id
+        self.assertEqual(move.state, "posted")
+        shipping_line = move.line_ids.filtered(
+            lambda ln: ln.account_id == self.shipping_account
+        )
+        self.assertAlmostEqual(shipping_line.credit, 5.00, places=2)
+        promo_line = move.line_ids.filtered(
+            lambda ln: ln.account_id == self.promotion_account
+        )
+        self.assertAlmostEqual(promo_line.debit, 3.00, places=2)
+        # No tax line (washed) and no meaningful unclassified adjustment.
+        self.assertFalse(
+            move.line_ids.filtered(lambda ln: ln.account_id == self.tax_account)
+        )
+        adj = move.line_ids.filtered(lambda ln: "unclassified" in (ln.name or ""))
+        self.assertFalse(adj, "fully-modeled settlement needs no adjustment line")
+
+    def test_settlement_parses_refund_with_adjustments(self):
+        """RefundEvents reverse principal/charges; refund event is negative."""
+        self._configure_backend()
+        refund_payload = {
+            "FinancialEvents": {
+                "ShipmentEvents": [],
+                "RefundEvents": [
+                    {
+                        "AmazonOrderId": "999-888-777",
+                        "PostedDate": "2024-05-02T00:00:00Z",
+                        "ShipmentItemAdjustmentList": [
+                            {
+                                "ItemChargeAdjustmentList": [
+                                    {
+                                        "ChargeType": "Principal",
+                                        "ChargeAmount": {"Amount": "20.00"},
+                                    }
+                                ]
+                            }
+                        ],
+                    }
+                ],
+                "ServiceFeeEvents": [],
+                "AdvertisingFeeEvents": [],
+            }
+        }
+        groups = {
+            "FinancialEventGroupList": [
+                {**SANDBOX_GROUP_DATA, "FinancialEventGroupId": "GROUPRF"}
+            ]
+        }
+        api = _mock_finances_api(groups, refund_payload)
+        with patch.object(type(self.backend), "_get_api", return_value=api):
+            self.backend._pull_settlements()
+
+        group = self.env["amz.settlement.group"].search(
+            [("backend_id", "=", self.backend.id), ("amazon_group_id", "=", "GROUPRF")]
+        )
+        refund = group.financial_event_ids.filtered(lambda e: e.event_type == "refund")
+        self.assertTrue(refund)
+        self.assertAlmostEqual(refund.amount, -20.00, places=2)
+        self.assertEqual(group.account_move_id.state, "posted")
+
+    # ── Phase 2: settlement ↔ invoice reconciliation ──────────────────────────
+
+    def _make_order_with_invoice(self, amz_order_id, invoice_untaxed):
+        """Create an amz.order + sale.order + posted out_invoice for the given
+        untaxed amount, linked so sale_order.invoice_ids resolves it."""
+        partner = self.env["res.partner"].create({"name": f"Cust {amz_order_id}"})
+        sale = self.env["sale.order"].create({"partner_id": partner.id})
+        amz_order = self.env["amz.order"].create(
+            {
+                "backend_id": self.backend.id,
+                "amz_order_id": amz_order_id,
+                "sale_order_id": sale.id,
+            }
+        )
+        sale_journal = self.env["account.journal"].search(
+            [("type", "=", "sale"), ("company_id", "=", self.env.company.id)],
+            limit=1,
+        ) or self.env["account.journal"].create(
+            {"name": "Amazon Sales Jrnl", "type": "sale", "code": "AMZSJ"}
+        )
+        line = self.env["sale.order.line"].create(
+            {"order_id": sale.id, "name": "x", "price_unit": invoice_untaxed}
+        )
+        invoice = self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "partner_id": partner.id,
+                "journal_id": sale_journal.id,
+                "invoice_line_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "name": "Amazon item",
+                            "quantity": 1,
+                            "price_unit": invoice_untaxed,
+                            "tax_ids": [(6, 0, [])],
+                            "account_id": self.income_account.id,
+                            "sale_line_ids": [(6, 0, [line.id])],
+                        },
+                    )
+                ],
+            }
+        )
+        invoice.action_post()
+        return amz_order, invoice
+
+    def _settlement_for_order(self, group_id, amz_order_id, principal):
+        group = self.env["amz.settlement.group"].create(
+            {
+                "backend_id": self.backend.id,
+                "amazon_group_id": group_id,
+                "processing_status": "Closed",
+                "converted_total": principal,
+                "currency_id": self.usd.id,
+            }
+        )
+        self.env["amz.financial.event"].create(
+            {
+                "settlement_group_id": group.id,
+                "event_type": "shipment",
+                "amz_order_id": amz_order_id,
+                "amount": principal,
+            }
+        )
+        return group
+
+    def test_reconciliation_matched(self):
+        self._configure_backend()
+        self._make_order_with_invoice("REC-MATCH", 100.00)
+        group = self._settlement_for_order("RECG1", "REC-MATCH", 100.00)
+        self.backend._reconcile_settlement(group)
+        recon = group.reconciliation_ids
+        self.assertEqual(len(recon), 1)
+        self.assertEqual(recon.state, "matched")
+        self.assertAlmostEqual(recon.variance, 0.0, places=2)
+
+    def test_reconciliation_variance(self):
+        self._configure_backend()
+        self._make_order_with_invoice("REC-VAR", 90.00)
+        group = self._settlement_for_order("RECG2", "REC-VAR", 100.00)
+        self.backend._reconcile_settlement(group)
+        recon = group.reconciliation_ids
+        self.assertEqual(recon.state, "variance")
+        self.assertAlmostEqual(recon.variance, 10.00, places=2)
+
+    def test_reconciliation_no_invoice(self):
+        self._configure_backend()
+        self.env["amz.order"].create(
+            {"backend_id": self.backend.id, "amz_order_id": "REC-NOINV"}
+        )
+        group = self._settlement_for_order("RECG3", "REC-NOINV", 100.00)
+        self.backend._reconcile_settlement(group)
+        recon = group.reconciliation_ids
+        self.assertEqual(recon.state, "no_invoice")

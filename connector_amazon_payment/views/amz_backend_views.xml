@@ -18,6 +18,9 @@
                     <field name="amazon_income_account_id" />
                     <field name="amazon_fee_account_id" />
                     <field name="amazon_advertising_account_id" />
+                    <field name="amazon_tax_account_id" />
+                    <field name="amazon_shipping_account_id" />
+                    <field name="amazon_promotion_account_id" />
                     <field name="amazon_settlement_journal_id" />
                     <field name="last_settlement_sync_date" />
                 </group>

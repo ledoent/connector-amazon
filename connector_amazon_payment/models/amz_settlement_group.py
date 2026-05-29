@@ -30,6 +30,11 @@ class AmazonSettlementGroup(models.Model):
         "settlement_group_id",
         "Financial Events",
     )
+    reconciliation_ids = fields.One2many(
+        "amz.settlement.reconciliation",
+        "settlement_group_id",
+        "Reconciliation",
+    )
 
     _amz_settlement_group_uniq = models.Constraint(
         "UNIQUE(backend_id, amazon_group_id)",

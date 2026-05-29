@@ -17,6 +17,13 @@ class AmazonBackend(models.Model):
         string="Pricelist",
         help="Applied to imported sale orders. Defaults to company pricelist.",
     )
+    amazon_auto_invoice = fields.Boolean(
+        "Auto-Invoice Orders",
+        default=False,
+        help="Confirm each imported Amazon order and create + post a customer "
+        "invoice for it. Requires invoiceable products (invoice_policy='order' "
+        "recommended). Needed for settlement-to-invoice reconciliation.",
+    )
 
     def import_orders(self):
         """Poll GetOrders and enqueue one job per order.
@@ -126,5 +133,16 @@ class AmazonBackend(models.Model):
                 amz_order, partner, items_payload.get("OrderItems", []), self
             )
             amz_order.sale_order_id = sale_order
+            if self.amazon_auto_invoice:
+                # Best-effort: a billing failure must not abort the order import.
+                try:
+                    sale_order._amazon_create_and_post_invoice(amazon_order_id)
+                except Exception as exc:
+                    _logger.warning(
+                        "auto-invoice failed for Amazon order %s on backend %s: %s",
+                        amazon_order_id,
+                        self.name,
+                        exc,
+                    )
 
         amz_order._sync_lines(items_payload.get("OrderItems", []))
