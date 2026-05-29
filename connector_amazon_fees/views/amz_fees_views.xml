@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <!-- Listing form: add a Fees & Margin group -->
+    <record id="view_amz_listing_form_fees" model="ir.ui.view">
+        <field name="name">amz.listing.form.fees</field>
+        <field name="model">amz.listing</field>
+        <field name="inherit_id" ref="connector_amazon_pricing.view_amz_listing_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//group[@name='pricing_info']" position="after">
+                <group name="fees_info" string="Fees &amp; Margin">
+                    <field name="is_fba" />
+                    <field name="referral_fee" />
+                    <field name="fulfillment_fee" invisible="not is_fba" />
+                    <field name="variable_closing_fee" />
+                    <field name="other_fees" invisible="other_fees == 0" />
+                    <field name="total_fees" />
+                    <field name="fee_basis_price" />
+                    <field name="est_net_proceeds" />
+                    <field name="est_net_margin" />
+                    <field name="est_margin_pct" widget="percentage" />
+                    <field name="below_target_margin" />
+                    <field name="last_fee_sync_date" />
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Listing list: add margin columns -->
+    <record id="view_amz_listing_list_fees" model="ir.ui.view">
+        <field name="name">amz.listing.list.fees</field>
+        <field name="model">amz.listing</field>
+        <field name="inherit_id" ref="connector_amazon_pricing.view_amz_listing_list" />
+        <field name="arch" type="xml">
+            <field name="computed_target_price" position="after">
+                <field name="total_fees" optional="show" />
+                <field name="est_margin_pct" widget="percentage" optional="show" />
+                <field
+                    name="below_target_margin"
+                    optional="hide"
+                    decoration-danger="below_target_margin"
+                />
+            </field>
+        </field>
+    </record>
+
+    <!-- Listing search: filter for margin below target -->
+    <record id="view_amz_listing_search_fees" model="ir.ui.view">
+        <field name="name">amz.listing.search.fees</field>
+        <field name="model">amz.listing</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="seller_sku" />
+                <field name="asin" />
+                <field name="product_id" />
+                <filter
+                    name="below_target_margin"
+                    string="Below Target Margin"
+                    domain="[('below_target_margin', '=', True)]"
+                />
+                <filter name="fba" string="FBA" domain="[('is_fba', '=', True)]" />
+            </search>
+        </field>
+    </record>
+
+    <!-- Backend form: Sync Fees button + last sync date + fee columns on listings -->
+    <record id="view_amz_backend_form_fees" model="ir.ui.view">
+        <field name="name">amz.backend.form.fees</field>
+        <field name="model">amz.backend</field>
+        <field name="inherit_id" ref="connector_amazon.view_amz_backend_form" />
+        <field name="arch" type="xml">
+            <header position="inside">
+                <button
+                    name="action_sync_fees"
+                    string="Sync Fees"
+                    type="object"
+                    class="btn-secondary"
+                />
+            </header>
+        </field>
+    </record>
+</odoo>
