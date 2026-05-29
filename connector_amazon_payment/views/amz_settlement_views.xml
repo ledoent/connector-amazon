@@ -48,9 +48,99 @@
                                 </list>
                             </field>
                         </page>
+                        <page name="reconciliation" string="Reconciliation">
+                            <field name="reconciliation_ids">
+                                <list>
+                                    <field name="amz_order_id" />
+                                    <field name="order_id" optional="show" />
+                                    <field name="invoice_id" />
+                                    <field name="settled_principal" />
+                                    <field name="invoiced_total" />
+                                    <field name="variance" />
+                                    <field name="state" />
+                                    <field name="currency_id" optional="hide" />
+                                </list>
+                            </field>
+                        </page>
                     </notebook>
                 </sheet>
             </form>
         </field>
     </record>
+
+    <record id="view_amz_settlement_recon_list" model="ir.ui.view">
+        <field name="name">amz.settlement.reconciliation.list</field>
+        <field name="model">amz.settlement.reconciliation</field>
+        <field name="arch" type="xml">
+            <list
+                decoration-danger="state == 'variance'"
+                decoration-success="state == 'matched'"
+                decoration-muted="state == 'no_invoice'"
+            >
+                <field name="settlement_group_id" />
+                <field name="amz_order_id" />
+                <field name="order_id" optional="show" />
+                <field name="invoice_id" />
+                <field name="settled_principal" />
+                <field name="invoiced_total" />
+                <field name="variance" />
+                <field name="state" />
+                <field name="currency_id" optional="hide" />
+            </list>
+        </field>
+    </record>
+
+    <record id="view_amz_settlement_recon_search" model="ir.ui.view">
+        <field name="name">amz.settlement.reconciliation.search</field>
+        <field name="model">amz.settlement.reconciliation</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="amz_order_id" />
+                <field name="invoice_id" />
+                <field name="settlement_group_id" />
+                <filter
+                    name="variances"
+                    string="Variances"
+                    domain="[('state', '=', 'variance')]"
+                />
+                <filter
+                    name="matched"
+                    string="Matched"
+                    domain="[('state', '=', 'matched')]"
+                />
+                <filter
+                    name="no_invoice"
+                    string="No Invoice"
+                    domain="[('state', '=', 'no_invoice')]"
+                />
+                <group>
+                    <filter
+                        name="group_settlement"
+                        string="Settlement"
+                        context="{'group_by': 'settlement_group_id'}"
+                    />
+                    <filter
+                        name="group_state"
+                        string="Status"
+                        context="{'group_by': 'state'}"
+                    />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_amz_settlement_recon" model="ir.actions.act_window">
+        <field name="name">Settlement Reconciliation</field>
+        <field name="res_model">amz.settlement.reconciliation</field>
+        <field name="view_mode">list</field>
+        <field name="search_view_id" ref="view_amz_settlement_recon_search" />
+    </record>
+
+    <menuitem
+        id="menu_amz_settlement_recon"
+        name="Settlement Reconciliation"
+        parent="connector_amazon.menu_amz_root"
+        action="action_amz_settlement_recon"
+        sequence="60"
+    />
 </odoo>

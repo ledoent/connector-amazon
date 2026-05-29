@@ -16,6 +16,7 @@
             <xpath expr="//group[@name='import_settings']" position="inside">
                 <field name="team_id" />
                 <field name="pricelist_id" />
+                <field name="amazon_auto_invoice" />
             </xpath>
         </field>
     </record>

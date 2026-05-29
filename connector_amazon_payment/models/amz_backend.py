@@ -5,6 +5,16 @@ from odoo import fields, models
 
 _logger = logging.getLogger(__name__)
 
+# Amazon ItemChargeList ChargeType → our event_type bucket. Charge types not
+# listed here (e.g. Principal, handled separately) are ignored.
+_CHARGE_TYPE_TO_EVENT = {
+    "Tax": "tax",
+    "ShippingTax": "tax",
+    "GiftWrapTax": "tax",
+    "ShippingCharge": "shipping",
+    "GiftWrap": "shipping",
+}
+
 
 def _parse_amz_dt(value):
     """Parse an Amazon ISO 8601 datetime string into a Python datetime."""
@@ -32,6 +42,23 @@ class AmazonBackend(models.Model):
         "account.account",
         "Amazon Advertising Account",
         help="Expense account for Amazon Advertising fees.",
+    )
+    amazon_tax_account_id = fields.Many2one(
+        "account.account",
+        "Amazon Tax Account",
+        help="Liability account for sales tax. Marketplace Facilitator Tax that "
+        "Amazon collects and remits nets to zero here; only seller-liable tax "
+        "leaves a balance.",
+    )
+    amazon_shipping_account_id = fields.Many2one(
+        "account.account",
+        "Amazon Shipping Account",
+        help="Revenue account for shipping and gift-wrap charged to the buyer.",
+    )
+    amazon_promotion_account_id = fields.Many2one(
+        "account.account",
+        "Amazon Promotion Account",
+        help="Contra-revenue account for seller-funded promotions and coupons.",
     )
     amazon_settlement_journal_id = fields.Many2one(
         "account.journal",
@@ -112,6 +139,10 @@ class AmazonBackend(models.Model):
             limit=1,
         )
         if existing and existing.account_move_id:
+            # Journal entry already posted; don't reprocess events. Re-run
+            # reconciliation only, so it self-heals as invoices are posted after
+            # the settlement first arrived (cheap — no API calls).
+            self._reconcile_settlement(existing)
             return
 
         conv = group_data.get("ConvertedTotal", {})
@@ -137,6 +168,7 @@ class AmazonBackend(models.Model):
         group.financial_event_ids.unlink()
         self._pull_group_events(api, group)
         self._create_settlement_entry(group)
+        self._reconcile_settlement(group)
 
     def _pull_group_events(self, api, group):
         """Fetch and parse all financial events for a settlement group."""
@@ -158,82 +190,103 @@ class AmazonBackend(models.Model):
                 break
 
     def _parse_shipment_events(self, group, events):
-        """Aggregate Principal, Commission, and FBA fees per ShipmentEvent."""
-        vals_list = []
-        for event in events:
-            order_id = event.get("AmazonOrderId")
-            posted_date = _parse_amz_dt(event.get("PostedDate"))
-            principal = commission = fba = 0.0
-            for item in event.get("ShipmentItemList", []):
-                for charge in item.get("ItemChargeList", []):
-                    if charge.get("ChargeType") == "Principal":
-                        principal += float(
-                            charge.get("ChargeAmount", {}).get("Amount", 0)
-                        )
-                for fee in item.get("ItemFeeList", []):
-                    fee_type = fee.get("FeeType", "")
-                    amount = float(fee.get("FeeAmount", {}).get("Amount", 0))
-                    if fee_type == "Commission":
-                        commission += amount
-                    elif "FBA" in fee_type or "Fulfillment" in fee_type:
-                        fba += amount
-            base = {
-                "settlement_group_id": group.id,
-                "amz_order_id": order_id,
-                "posted_date": posted_date,
-            }
-            if principal:
-                vals_list.append(
-                    {
-                        **base,
-                        "event_type": "shipment",
-                        "amount": principal,
-                        "fee_description": "Principal",
-                    }
-                )
-            if commission:
-                vals_list.append(
-                    {
-                        **base,
-                        "event_type": "referral_fee",
-                        "amount": commission,
-                        "fee_description": "Commission",
-                    }
-                )
-            if fba:
-                vals_list.append(
-                    {
-                        **base,
-                        "event_type": "fba_fee",
-                        "amount": fba,
-                        "fee_description": "FBAFee",
-                    }
-                )
-        if vals_list:
-            self.env["amz.financial.event"].create(vals_list)
+        """Aggregate per ShipmentEvent: Principal/Commission/FBA plus tax
+        (collected and Amazon-withheld), shipping, and promotions."""
+        self._parse_shipment_like(
+            group,
+            events,
+            item_key="ShipmentItemList",
+            charge_key="ItemChargeList",
+            promotion_key="PromotionList",
+            sign=1.0,
+        )
 
     def _parse_refund_events(self, group, events):
-        """Aggregate Principal charges from RefundEvents."""
+        """RefundEvents mirror ShipmentEvents (adjustment lists, sign flipped):
+        Principal becomes a refund, fees/tax/shipping/promo reverse."""
+        self._parse_shipment_like(
+            group,
+            events,
+            item_key="ShipmentItemAdjustmentList",
+            charge_key="ItemChargeAdjustmentList",
+            promotion_key="PromotionAdjustmentList",
+            sign=-1.0,
+            principal_event="refund",
+        )
+
+    def _parse_shipment_like(
+        self,
+        group,
+        events,
+        item_key,
+        charge_key,
+        promotion_key,
+        sign,
+        principal_event="shipment",
+    ):
+        """Shared parser for ShipmentEvents and RefundEvents.
+
+        ``sign`` is +1 for shipments and -1 for refunds (adjustment amounts are
+        positive in the payload but represent reversals). ``principal_event``
+        routes Principal to ``shipment`` or ``refund``.
+        """
         vals_list = []
         for event in events:
             order_id = event.get("AmazonOrderId")
             posted_date = _parse_amz_dt(event.get("PostedDate"))
-            total = 0.0
-            for item in event.get("ShipmentItemAdjustmentList", []):
-                for charge in item.get("ItemChargeAdjustmentList", []):
-                    if charge.get("ChargeType") == "Principal":
-                        total += float(charge.get("ChargeAmount", {}).get("Amount", 0))
-            if total:
-                vals_list.append(
-                    {
-                        "settlement_group_id": group.id,
-                        "event_type": "refund",
-                        "amz_order_id": order_id,
-                        "posted_date": posted_date,
-                        "amount": total,
-                        "fee_description": "Refund",
-                    }
-                )
+            buckets = {}  # event_type → (amount, description)
+            for item in event.get(item_key, []):
+                for charge in item.get(charge_key, []):
+                    ctype = charge.get("ChargeType", "")
+                    amount = sign * float(
+                        charge.get("ChargeAmount", {}).get("Amount", 0)
+                    )
+                    if ctype == "Principal":
+                        evt, desc = principal_event, "Principal"
+                    elif ctype in _CHARGE_TYPE_TO_EVENT:
+                        evt, desc = _CHARGE_TYPE_TO_EVENT[ctype], ctype
+                    else:
+                        continue
+                    acc, _d = buckets.get(evt, (0.0, desc))
+                    buckets[evt] = (acc + amount, desc)
+                # Marketplace Facilitator Tax that Amazon collects then withholds
+                # (negative) nets against collected Tax above → tax washes to 0.
+                for withheld in item.get("ItemTaxWithheldList", []):
+                    for charge in withheld.get("TaxesWithheld", []):
+                        amount = sign * float(
+                            charge.get("ChargeAmount", {}).get("Amount", 0)
+                        )
+                        acc, _d = buckets.get("tax", (0.0, "TaxWithheld"))
+                        buckets["tax"] = (acc + amount, "Tax")
+                for fee in item.get("ItemFeeList", []):
+                    fee_type = fee.get("FeeType", "")
+                    amount = sign * float(fee.get("FeeAmount", {}).get("Amount", 0))
+                    if fee_type == "Commission":
+                        evt, desc = "referral_fee", "Commission"
+                    elif "FBA" in fee_type or "Fulfillment" in fee_type:
+                        evt, desc = "fba_fee", "FBAFee"
+                    else:
+                        continue
+                    acc, _d = buckets.get(evt, (0.0, desc))
+                    buckets[evt] = (acc + amount, desc)
+                for promo in item.get(promotion_key, []):
+                    amount = sign * float(
+                        promo.get("PromotionAmount", {}).get("Amount", 0)
+                    )
+                    acc, _d = buckets.get("promotion", (0.0, "Promotion"))
+                    buckets["promotion"] = (acc + amount, "Promotion")
+            for evt, (amount, desc) in buckets.items():
+                if amount:
+                    vals_list.append(
+                        {
+                            "settlement_group_id": group.id,
+                            "amz_order_id": order_id,
+                            "posted_date": posted_date,
+                            "event_type": evt,
+                            "amount": amount,
+                            "fee_description": desc,
+                        }
+                    )
         if vals_list:
             self.env["amz.financial.event"].create(vals_list)
 
@@ -292,70 +345,66 @@ class AmazonBackend(models.Model):
             )
             return
 
-        events = group.financial_event_ids
-        income = sum(e.amount for e in events if e.amount > 0)
-        adv_fees = abs(
-            sum(
-                e.amount
-                for e in events
-                if e.event_type == "advertising" and e.amount < 0
-            )
-        )
-        other_fees = abs(
-            sum(
-                e.amount
-                for e in events
-                if e.event_type != "advertising" and e.amount < 0
-            )
-        )
-        net = group.converted_total
         entry_date = (
             group.fund_transfer_date.date()
             if group.fund_transfer_date
             else fields.Date.today()
         )
 
+        # Sum the settlement's financial events by type, then post each modeled
+        # bucket to its own GL account. Net signed total per type: positive =
+        # money in (credit revenue), negative = money out (debit expense/contra).
+        fee_account = self.amazon_fee_account_id
+        income_account = self.amazon_income_account_id
+        # event_type → (account, label). Sign of the summed amount decides the
+        # debit/credit side, so each type's line is correct whichever way it nets.
+        type_accounts = {
+            "shipment": (income_account, "Amazon sales"),
+            "refund": (income_account, "Amazon refunds"),
+            "shipping": (
+                self.amazon_shipping_account_id or income_account,
+                "Amazon shipping",
+            ),
+            "promotion": (
+                self.amazon_promotion_account_id or income_account,
+                "Amazon promotions",
+            ),
+            "tax": (self.amazon_tax_account_id, "Amazon tax"),
+            "referral_fee": (fee_account, "Amazon referral fees"),
+            "fba_fee": (fee_account, "Amazon FBA fees"),
+            "service_fee": (fee_account, "Amazon service fees"),
+            "advertising": (
+                self.amazon_advertising_account_id or fee_account,
+                "Amazon advertising",
+            ),
+            "other": (fee_account, "Amazon other"),
+        }
+        currency = group.currency_id or self.env.company.currency_id
+        totals = {}
+        for event in group.financial_event_ids:
+            totals[event.event_type] = totals.get(event.event_type, 0.0) + event.amount
+
         lines = []
-        if income and self.amazon_income_account_id:
-            lines.append(
-                (
-                    0,
-                    0,
-                    {
-                        "account_id": self.amazon_income_account_id.id,
-                        "name": f"Amazon sales — {group.amazon_group_id}",
-                        "credit": income,
-                    },
-                )
+        for event_type, amount in totals.items():
+            amount = currency.round(amount)
+            if currency.is_zero(amount):
+                continue  # e.g. Marketplace Facilitator Tax washes to zero
+            account, label = type_accounts.get(
+                event_type, (fee_account, "Amazon other")
             )
-        if other_fees and self.amazon_fee_account_id:
-            lines.append(
-                (
-                    0,
-                    0,
-                    {
-                        "account_id": self.amazon_fee_account_id.id,
-                        "name": f"Amazon fees — {group.amazon_group_id}",
-                        "debit": other_fees,
-                    },
-                )
-            )
-        if adv_fees:
-            adv_account = (
-                self.amazon_advertising_account_id or self.amazon_fee_account_id
-            )
-            if adv_account:
-                lines.append(
-                    (
-                        0,
-                        0,
-                        {
-                            "account_id": adv_account.id,
-                            "name": f"Amazon advertising — {group.amazon_group_id}",
-                            "debit": adv_fees,
-                        },
-                    )
-                )
+            if not account:
+                continue  # unconfigured optional account → absorbed by the plug
+            line = {
+                "account_id": account.id,
+                "name": f"{label} — {group.amazon_group_id}",
+            }
+            # amount > 0 → revenue/credit; amount < 0 → expense/debit
+            line["credit" if amount > 0 else "debit"] = abs(amount)
+            lines.append((0, 0, line))
+
+        # Disbursement: the actual cash Amazon transferred (debit the bank/journal
+        # account). Booked at converted_total even when modeled buckets don't sum
+        # to it — the adjustment line below absorbs any residual.
         lines.append(
             (
                 0,
@@ -363,17 +412,15 @@ class AmazonBackend(models.Model):
                 {
                     "account_id": disbursement_account.id,
                     "name": f"Amazon disbursement — {group.amazon_group_id}",
-                    "debit": net,
+                    "debit": group.converted_total,
                 },
             )
         )
 
-        # Amazon settlements carry charge types this module does not model yet
-        # (tax collected, shipping, promotions). Their net is the gap between the
-        # disbursement and modeled income/fees. Odoo rejects an unbalanced move at
-        # create() time, so book the gap to an adjustment line for later review —
-        # this keeps the real disbursement intact and never drops the settlement.
-        currency = group.currency_id or self.env.company.currency_id
+        # Residual after modeling tax/shipping/promotions should be only currency
+        # rounding. Odoo rejects an unbalanced move at create() time, so book any
+        # remainder to an adjustment line — keeps the disbursement intact and never
+        # drops the settlement.
         imbalance = currency.round(
             sum(ln[2].get("debit", 0.0) for ln in lines)
             - sum(ln[2].get("credit", 0.0) for ln in lines)
@@ -409,6 +456,60 @@ class AmazonBackend(models.Model):
         )
         group.account_move_id = move
         move.action_post()
+
+    def _reconcile_settlement(self, group):
+        """Match each order's settled Principal against its posted invoice.
+
+        Builds one ``amz.settlement.reconciliation`` row per Amazon order in the
+        group: settled Principal vs the order's posted customer-invoice total,
+        flagged ``matched`` / ``variance`` / ``no_invoice``. Idempotent per group.
+        """
+        Recon = self.env["amz.settlement.reconciliation"]
+        currency = group.currency_id or self.env.company.currency_id
+        group.reconciliation_ids.unlink()
+
+        settled_by_order = {}
+        for event in group.financial_event_ids.filtered(
+            lambda e: e.event_type == "shipment" and e.amz_order_id
+        ):
+            settled_by_order[event.amz_order_id] = (
+                settled_by_order.get(event.amz_order_id, 0.0) + event.amount
+            )
+
+        vals_list = []
+        for amz_order_id, settled in settled_by_order.items():
+            order = self.env["amz.order"].search(
+                [("backend_id", "=", self.id), ("amz_order_id", "=", amz_order_id)],
+                limit=1,
+            )
+            invoices = self.env["account.move"]
+            if order.sale_order_id:
+                invoices = order.sale_order_id.invoice_ids.filtered(
+                    lambda m: m.move_type == "out_invoice" and m.state == "posted"
+                )
+            if invoices:
+                # An order may be invoiced across several documents — sum them.
+                invoiced = sum(invoices.mapped("amount_untaxed"))
+                variance = currency.round(settled - invoiced)
+                state = "matched" if currency.is_zero(variance) else "variance"
+            else:
+                invoiced = 0.0
+                variance = 0.0
+                state = "no_invoice"
+            vals_list.append(
+                {
+                    "settlement_group_id": group.id,
+                    "amz_order_id": amz_order_id,
+                    "order_id": order.id or False,
+                    "invoice_id": invoices[:1].id or False,
+                    "settled_principal": settled,
+                    "invoiced_total": invoiced,
+                    "variance": variance,
+                    "state": state,
+                }
+            )
+        if vals_list:
+            Recon.create(vals_list)
 
     def sync_settlements(self):
         """Cron entry point — enqueue settlement pull for each active backend."""
