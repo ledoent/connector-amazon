@@ -757,3 +757,81 @@ class TestPayment(TransactionCase):
         self.backend._reconcile_settlement(group)
         recon = group.reconciliation_ids
         self.assertEqual(recon.state, "no_invoice")
+
+    def _post_invoice_for_order(self, amz_order, untaxed):
+        sale = amz_order.sale_order_id
+        sale_journal = self.env["account.journal"].search(
+            [("type", "=", "sale"), ("company_id", "=", self.env.company.id)], limit=1
+        ) or self.env["account.journal"].create(
+            {"name": "Amazon Sales Jrnl", "type": "sale", "code": "AMZSJ"}
+        )
+        line = self.env["sale.order.line"].create(
+            {"order_id": sale.id, "name": "x", "price_unit": untaxed}
+        )
+        invoice = self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "partner_id": sale.partner_id.id,
+                "journal_id": sale_journal.id,
+                "invoice_line_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "name": "Amazon item",
+                            "quantity": 1,
+                            "price_unit": untaxed,
+                            "tax_ids": [(6, 0, [])],
+                            "account_id": self.income_account.id,
+                            "sale_line_ids": [(6, 0, [line.id])],
+                        },
+                    )
+                ],
+            }
+        )
+        invoice.action_post()
+        return invoice
+
+    def test_reconciliation_reruns_and_self_heals(self):
+        """A settlement first reconciled with no invoice flips to matched once
+        the invoice is posted and reconciliation re-runs."""
+        self._configure_backend()
+        partner = self.env["res.partner"].create({"name": "Heal Cust"})
+        sale = self.env["sale.order"].create({"partner_id": partner.id})
+        amz_order = self.env["amz.order"].create(
+            {
+                "backend_id": self.backend.id,
+                "amz_order_id": "REC-HEAL",
+                "sale_order_id": sale.id,
+            }
+        )
+        group = self._settlement_for_order("RECG4", "REC-HEAL", 100.00)
+
+        self.backend._reconcile_settlement(group)
+        self.assertEqual(group.reconciliation_ids.state, "no_invoice")
+
+        self._post_invoice_for_order(amz_order, 100.00)
+        self.backend._reconcile_settlement(group)  # idempotent re-run
+        recon = group.reconciliation_ids
+        self.assertEqual(len(recon), 1, "re-run must not duplicate rows")
+        self.assertEqual(recon.state, "matched")
+
+    def test_reconciliation_sums_multiple_invoices(self):
+        """An order invoiced across two posted documents reconciles on the sum."""
+        self._configure_backend()
+        partner = self.env["res.partner"].create({"name": "Multi Cust"})
+        sale = self.env["sale.order"].create({"partner_id": partner.id})
+        amz_order = self.env["amz.order"].create(
+            {
+                "backend_id": self.backend.id,
+                "amz_order_id": "REC-MULTI",
+                "sale_order_id": sale.id,
+            }
+        )
+        self._post_invoice_for_order(amz_order, 60.00)
+        self._post_invoice_for_order(amz_order, 40.00)
+        group = self._settlement_for_order("RECG5", "REC-MULTI", 100.00)
+        self.backend._reconcile_settlement(group)
+        recon = group.reconciliation_ids
+        self.assertEqual(recon.state, "matched")
+        self.assertAlmostEqual(recon.invoiced_total, 100.00, places=2)

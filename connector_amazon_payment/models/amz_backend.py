@@ -139,6 +139,10 @@ class AmazonBackend(models.Model):
             limit=1,
         )
         if existing and existing.account_move_id:
+            # Journal entry already posted; don't reprocess events. Re-run
+            # reconciliation only, so it self-heals as invoices are posted after
+            # the settlement first arrived (cheap — no API calls).
+            self._reconcile_settlement(existing)
             return
 
         conv = group_data.get("ConvertedTotal", {})
@@ -385,8 +389,9 @@ class AmazonBackend(models.Model):
             amount = currency.round(amount)
             if currency.is_zero(amount):
                 continue  # e.g. Marketplace Facilitator Tax washes to zero
-            account = type_accounts.get(event_type, (fee_account, "Amazon other"))[0]
-            label = type_accounts.get(event_type, (None, "Amazon other"))[1]
+            account, label = type_accounts.get(
+                event_type, (fee_account, "Amazon other")
+            )
             if not account:
                 continue  # unconfigured optional account → absorbed by the plug
             line = {
@@ -477,13 +482,14 @@ class AmazonBackend(models.Model):
                 [("backend_id", "=", self.id), ("amz_order_id", "=", amz_order_id)],
                 limit=1,
             )
-            invoice = self.env["account.move"]
+            invoices = self.env["account.move"]
             if order.sale_order_id:
-                invoice = order.sale_order_id.invoice_ids.filtered(
+                invoices = order.sale_order_id.invoice_ids.filtered(
                     lambda m: m.move_type == "out_invoice" and m.state == "posted"
-                )[:1]
-            if invoice:
-                invoiced = invoice.amount_untaxed
+                )
+            if invoices:
+                # An order may be invoiced across several documents — sum them.
+                invoiced = sum(invoices.mapped("amount_untaxed"))
                 variance = currency.round(settled - invoiced)
                 state = "matched" if currency.is_zero(variance) else "variance"
             else:
@@ -495,7 +501,7 @@ class AmazonBackend(models.Model):
                     "settlement_group_id": group.id,
                     "amz_order_id": amz_order_id,
                     "order_id": order.id or False,
-                    "invoice_id": invoice.id or False,
+                    "invoice_id": invoices[:1].id or False,
                     "settled_principal": settled,
                     "invoiced_total": invoiced,
                     "variance": variance,
