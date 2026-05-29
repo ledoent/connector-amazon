@@ -17,6 +17,7 @@ class TestDashboard(TransactionCase):
                 "warehouse_id": cls.warehouse.id,
                 "last_import_date": "2026-05-20 00:00:00",
                 "last_fba_sync_date": "2026-05-21 00:00:00",
+                "competitive_floor_margin_pct": 50.0,
             }
         )
         # A second, empty backend to prove the backend_id filter scopes counts.
@@ -58,6 +59,9 @@ class TestDashboard(TransactionCase):
                 "product_id": cls.product.id,
                 "seller_sku": "DASH-SKU",
                 "buy_box_winner": "us",
+                # Healthy margin: (30 - 4.5) / 30 = 85% > 50% target.
+                "fee_basis_price": 30.0,
+                "referral_fee": 4.5,
             }
         )
         cls.listing_comp = cls.env["amz.listing"].create(
@@ -66,6 +70,9 @@ class TestDashboard(TransactionCase):
                 "product_id": cls.product.id,
                 "seller_sku": "DASH-SKU-2",
                 "buy_box_winner": "competitor",
+                # Thin margin: (20 - 12) / 20 = 40% < 50% target -> below.
+                "fee_basis_price": 20.0,
+                "referral_fee": 12.0,
             }
         )
 
@@ -121,6 +128,9 @@ class TestDashboard(TransactionCase):
         self.assertEqual(d.buybox_win_rate, 0.5)
         self.assertEqual(d.price_changes_7d, 1)
         self.assertEqual(d.offers_7d, 1)
+        # Margins: 85% and 40% -> avg 62.5%, one below the 50% target.
+        self.assertAlmostEqual(d.avg_margin, 0.625)
+        self.assertEqual(d.listings_below_margin, 1)
         self.assertEqual(d.fba_skus, 1)
         self.assertEqual(d.fba_drift_skus, 1)
         self.assertEqual(d.fba_total_drift, 7.0)

@@ -1,0 +1,274 @@
+// Amazon Operations Dashboard — "command center" look.
+// Scoped entirely under .o_amz_dashboard so nothing leaks into other views.
+.o_amz_dashboard {
+    --amz-bg: #eef1f5;
+    --amz-card: #ffffff;
+    --amz-ink: #14202b;
+    --amz-muted: #6c7b8c;
+    --amz-line: #e4e8ee;
+    --amz-accent: #ff8c14;
+    --amz-accent-2: #ff6a00;
+    --amz-ok: #16a34a;
+    --amz-warn: #d97706;
+    --amz-danger: #e11d48;
+
+    color: var(--amz-ink);
+
+    // Drop the white "paper" sheet so cards float on a soft wash.
+    .o_form_sheet_bg {
+        background: var(--amz-bg);
+    }
+    .o_form_sheet {
+        max-width: 1220px;
+        background: transparent;
+        border: 0;
+        box-shadow: none;
+        padding: 16px 18px 34px;
+    }
+
+    // ── Hero ────────────────────────────────────────────────────────────────
+    .amz_hero {
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        padding: 26px 32px;
+        border-radius: 18px;
+        color: #fff;
+        background:
+            radial-gradient(
+                120% 150% at 100% 0%,
+                rgba(255, 140, 20, 0.22),
+                transparent 58%
+            ),
+            linear-gradient(135deg, #1b2a39 0%, #0f1922 100%);
+        box-shadow: 0 22px 44px -26px rgba(15, 25, 34, 0.75);
+    }
+    .amz_hero::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 3px;
+        background: linear-gradient(90deg, var(--amz-accent), var(--amz-accent-2));
+    }
+    // Red glow snaps on only when health == attention.
+    .amz_hero_alert {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: radial-gradient(
+            130% 170% at 100% 0%,
+            rgba(225, 29, 72, 0.32),
+            transparent 52%
+        );
+    }
+    .amz_hero_left {
+        position: relative;
+        z-index: 1;
+    }
+    .amz_eyebrow {
+        text-transform: uppercase;
+        letter-spacing: 0.22em;
+        font-size: 0.68rem;
+        font-weight: 600;
+        opacity: 0.62;
+    }
+    .amz_hero_title {
+        margin: 5px 0 14px;
+        font-size: 1.95rem;
+        font-weight: 750;
+        letter-spacing: -0.01em;
+        line-height: 1;
+    }
+    .amz_hero_backend {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.8rem;
+        opacity: 0.92;
+        .o_field_widget {
+            min-width: 220px;
+        }
+    }
+    .amz_hero_health {
+        position: relative;
+        z-index: 1;
+        text-align: right;
+    }
+    .amz_hero_health_label {
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        font-size: 0.62rem;
+        opacity: 0.6;
+        margin-bottom: 9px;
+    }
+    .amz_hero_health .badge {
+        font-size: 1.05rem;
+        font-weight: 700;
+        padding: 0.55em 1.15em;
+        border-radius: 999px;
+    }
+
+    // ── Sections ────────────────────────────────────────────────────────────
+    .amz_section {
+        margin-top: 26px;
+    }
+    .amz_section_head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        font-size: 0.74rem;
+        font-weight: 700;
+        color: var(--amz-muted);
+    }
+    .amz_tick {
+        width: 20px;
+        height: 3px;
+        border-radius: 2px;
+        background: linear-gradient(90deg, var(--amz-accent), var(--amz-accent-2));
+    }
+
+    .amz_grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        gap: 14px;
+    }
+
+    // ── KPI cards ───────────────────────────────────────────────────────────
+    .amz_kpi {
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 18px 18px 16px;
+        background: var(--amz-card);
+        border: 1px solid var(--amz-line);
+        border-radius: 14px;
+        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+        transition:
+            transform 0.16s ease,
+            box-shadow 0.16s ease;
+    }
+    .amz_kpi:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 16px 30px -18px rgba(16, 24, 40, 0.5);
+    }
+    .amz_kpi::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: var(--amz-line);
+    }
+    .amz_kpi--accent::before {
+        background: linear-gradient(90deg, var(--amz-accent), var(--amz-accent-2));
+    }
+
+    .amz_kpi_label {
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 0.7rem;
+        font-weight: 650;
+        color: var(--amz-muted);
+    }
+    .amz_kpi .o_field_widget {
+        font-size: 2.05rem;
+        font-weight: 760;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+        color: var(--amz-ink);
+    }
+    .amz_kpi .amz_num--danger.o_field_widget {
+        color: var(--amz-danger);
+    }
+    .amz_kpi .amz_num--warn.o_field_widget {
+        color: var(--amz-warn);
+    }
+
+    .amz_alert {
+        align-self: flex-start;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 3px 9px;
+        border-radius: 999px;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        font-size: 0.64rem;
+        font-weight: 700;
+        color: #fff;
+        background: var(--amz-danger);
+    }
+    .amz_alert--warn {
+        background: var(--amz-warn);
+    }
+
+    // Drill-down buttons rendered as quiet links.
+    .amz_link.btn,
+    .amz_link {
+        align-self: flex-start;
+        margin: 2px 0 0;
+        padding: 0;
+        border: 0;
+        background: none;
+        box-shadow: none;
+        font-size: 0.76rem;
+        font-weight: 650;
+        color: var(--amz-accent-2);
+        &:hover {
+            background: none;
+            color: var(--amz-accent);
+            text-decoration: underline;
+        }
+    }
+
+    // ── Sync-freshness panel ──────────────────────────────────────────────────
+    .amz_synccard {
+        grid-column: span 2;
+        display: flex;
+        flex-direction: column;
+        padding: 16px 18px;
+        background: var(--amz-card);
+        border: 1px solid var(--amz-line);
+        border-radius: 14px;
+        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+    }
+    .amz_synccard_title {
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 0.7rem;
+        font-weight: 650;
+        color: var(--amz-muted);
+        margin-bottom: 6px;
+    }
+    .amz_syncrow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 7px 0;
+        border-bottom: 1px solid var(--amz-line);
+        &:last-child {
+            border-bottom: 0;
+        }
+        .amz_syncrow_label {
+            font-size: 0.8rem;
+            color: var(--amz-muted);
+        }
+        .o_field_widget {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--amz-ink);
+        }
+    }
+}

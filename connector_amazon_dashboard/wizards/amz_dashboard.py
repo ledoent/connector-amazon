@@ -25,6 +25,10 @@ class AmazonDashboard(models.TransientModel):
     buybox_win_rate = fields.Float("Buy Box Win %", compute="_compute_kpis")
     price_changes_7d = fields.Integer("Price Changes (7d)", compute="_compute_kpis")
     offers_7d = fields.Integer("Competitor Offers (7d)", compute="_compute_kpis")
+    avg_margin = fields.Float(compute="_compute_kpis")
+    listings_below_margin = fields.Integer(
+        "Below Target Margin", compute="_compute_kpis"
+    )
     # ── FBA ───────────────────────────────────────────────────────────────────
     fba_skus = fields.Integer("FBA SKUs", compute="_compute_kpis")
     fba_drift_skus = fields.Integer("FBA Drift SKUs", compute="_compute_kpis")
@@ -105,6 +109,12 @@ class AmazonDashboard(models.TransientModel):
             rec.offers_7d = self.env["amz.offer.snapshot"].search_count(
                 bdom + [("date", ">=", cutoff)]
             )
+            priced = listing.search(bdom + [("fee_basis_price", ">", 0)])
+            margins = priced.mapped("est_margin_pct")
+            rec.avg_margin = sum(margins) / len(margins) if margins else 0.0
+            rec.listings_below_margin = listing.search_count(
+                bdom + [("below_target_margin", "=", True)]
+            )
 
             fba = self.env["amz.fba.inventory"]
             rec.fba_skus = fba.search_count(bdom)
@@ -147,7 +157,12 @@ class AmazonDashboard(models.TransientModel):
             rec.last_price_sync = self._latest(backends, "last_price_sync_date")
             rec.health_status = (
                 "attention"
-                if rec.failed_jobs or rec.recon_variance or rec.fba_drift_skus
+                if (
+                    rec.failed_jobs
+                    or rec.recon_variance
+                    or rec.fba_drift_skus
+                    or rec.listings_below_margin
+                )
                 else "ok"
             )
 
@@ -191,6 +206,13 @@ class AmazonDashboard(models.TransientModel):
         cutoff = fields.Datetime.now() - timedelta(days=7)
         return self._action(
             "Recent Price Changes", "amz.price.history", [("date", ">=", cutoff)]
+        )
+
+    def action_open_below_margin(self):
+        return self._action(
+            "Listings Below Target Margin",
+            "amz.listing",
+            [("below_target_margin", "=", True)],
         )
 
     def action_open_failed_jobs(self):
