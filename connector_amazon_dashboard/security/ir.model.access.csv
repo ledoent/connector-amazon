@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_amz_dashboard_manager,amz.dashboard manager,model_amz_dashboard,connector_amazon.group_amz_manager,1,1,1,1
+access_amz_dashboard_user,amz.dashboard user,model_amz_dashboard,connector_amazon.group_amz_user,1,1,1,0

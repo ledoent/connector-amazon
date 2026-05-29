@@ -1,0 +1,26 @@
+{
+    "name": "Amazon SP-API Connector: Dashboard",
+    "version": "19.0.1.0.0",
+    "category": "Sales/Sales",
+    "summary": "Health and KPI dashboard across the Amazon connector suite",
+    "author": "Ledo, Odoo Community Association (OCA)",
+    "website": "https://github.com/OCA/connector-amazon",
+    "license": "AGPL-3",
+    "depends": [
+        "connector_amazon_sale",
+        "connector_amazon_pricing",
+        "connector_amazon_repricing",
+        "connector_amazon_inventory",
+        "connector_amazon_stock",
+        "connector_amazon_payment",
+        "connector_amazon_return",
+        "connector_amazon_fba",
+    ],
+    "data": [
+        "security/ir.model.access.csv",
+        "views/amz_dashboard_views.xml",
+    ],
+    "maintainers": ["dnplkndll"],
+    "development_status": "Beta",
+    "installable": True,
+}

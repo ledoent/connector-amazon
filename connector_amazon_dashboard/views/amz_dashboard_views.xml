@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_amz_dashboard_form" model="ir.ui.view">
+        <field name="name">amz.dashboard.form</field>
+        <field name="model">amz.dashboard</field>
+        <field name="arch" type="xml">
+            <form create="false" edit="false">
+                <sheet>
+                    <div class="oe_title">
+                        <h1>Amazon Dashboard</h1>
+                    </div>
+                    <group>
+                        <field name="backend_id" />
+                        <field name="currency_id" invisible="1" />
+                        <field
+                            name="health_status"
+                            widget="badge"
+                            decoration-success="health_status == 'ok'"
+                            decoration-danger="health_status == 'attention'"
+                        />
+                    </group>
+                    <group>
+                        <group string="Sales">
+                            <field name="orders_total" />
+                            <field name="orders_unshipped" />
+                            <button
+                                name="action_open_unshipped"
+                                type="object"
+                                string="View unshipped"
+                                class="btn-link"
+                            />
+                        </group>
+                        <group string="Pricing &amp; Repricing">
+                            <field name="listings_total" />
+                            <field name="listings_buybox_us" />
+                            <field name="buybox_win_rate" widget="percentage" />
+                            <field name="price_changes_7d" />
+                            <field name="offers_7d" />
+                            <button
+                                name="action_open_price_changes"
+                                type="object"
+                                string="View price changes"
+                                class="btn-link"
+                            />
+                        </group>
+                    </group>
+                    <group>
+                        <group string="FBA">
+                            <field name="fba_skus" />
+                            <field name="fba_drift_skus" />
+                            <field name="fba_total_drift" />
+                            <button
+                                name="action_open_fba_drift"
+                                type="object"
+                                string="View drift"
+                                class="btn-link"
+                            />
+                        </group>
+                        <group string="Settlements">
+                            <field name="settlement_groups" />
+                            <field name="settlement_moves_draft" />
+                            <field name="recon_matched" />
+                            <field name="recon_variance" />
+                            <field name="recon_no_invoice" />
+                            <field name="recon_variance_amount" />
+                            <button
+                                name="action_open_recon_variance"
+                                type="object"
+                                string="View variances"
+                                class="btn-link"
+                            />
+                        </group>
+                    </group>
+                    <group>
+                        <group string="Returns">
+                            <field name="returns_open" />
+                            <field name="returns_credited" />
+                            <button
+                                name="action_open_returns_open"
+                                type="object"
+                                string="View open returns"
+                                class="btn-link"
+                            />
+                        </group>
+                        <group string="Health">
+                            <field name="failed_jobs" />
+                            <field name="last_order_sync" />
+                            <field name="last_settlement_sync" />
+                            <field name="last_return_sync" />
+                            <field name="last_fba_sync" />
+                            <field name="last_price_sync" />
+                            <button
+                                name="action_open_failed_jobs"
+                                type="object"
+                                string="View failed jobs"
+                                class="btn-link"
+                            />
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_amz_dashboard" model="ir.actions.act_window">
+        <field name="name">Dashboard</field>
+        <field name="res_model">amz.dashboard</field>
+        <field name="view_mode">form</field>
+        <field name="target">current</field>
+    </record>
+
+    <menuitem
+        id="menu_amz_dashboard"
+        name="Dashboard"
+        parent="connector_amazon.menu_amz_root"
+        action="action_amz_dashboard"
+        sequence="1"
+        groups="connector_amazon.group_amz_user"
+    />
+</odoo>
