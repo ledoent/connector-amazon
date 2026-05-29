@@ -41,6 +41,21 @@
                             <field name="last_price_push_date" />
                         </group>
                     </group>
+                    <notebook>
+                        <page name="price_history" string="Price History">
+                            <field name="price_history_ids">
+                                <list>
+                                    <field name="date" />
+                                    <field name="old_price" />
+                                    <field name="new_price" />
+                                    <field name="pricing_rule" optional="show" />
+                                    <field name="trigger" />
+                                    <field name="user_id" optional="hide" />
+                                    <field name="currency_id" optional="hide" />
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
                 </sheet>
             </form>
         </field>

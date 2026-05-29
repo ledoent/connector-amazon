@@ -200,9 +200,27 @@ class AmazonBackend(models.Model):
                 "last_price_pull_date": fields.Datetime.now(),
             }
         )
+        self._snapshot_offers(listing, offers)
 
         if self.price_push_enabled:
             self._reprice_listing(listing)
+
+    def _snapshot_offers(self, listing, offers):
+        """Persist a competitor-offer snapshot per offer for win-rate analytics."""
+        vals_list = []
+        for offer in offers:
+            seller_id = offer.get("SellerId")
+            vals_list.append(
+                {
+                    "listing_id": listing.id,
+                    "seller_id": seller_id,
+                    "is_own_offer": bool(seller_id) and seller_id == self.seller_id,
+                    "is_buy_box_winner": bool(offer.get("IsBuyBoxWinner")),
+                    "price": float(offer.get("ListingPrice", {}).get("Amount", 0) or 0),
+                }
+            )
+        if vals_list:
+            self.env["amz.offer.snapshot"].create(vals_list)
 
     # ── Competitive repricing ─────────────────────────────────────────────────
 
@@ -229,6 +247,7 @@ class AmazonBackend(models.Model):
         api = self._get_api(ListingsItems)
         try:
             self._patch_listing_price_to_api(api, listing, price)
+            listing._log_price_change(price, "notification")
             listing.write(
                 {
                     "current_list_price": price,

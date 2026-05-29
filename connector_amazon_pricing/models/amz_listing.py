@@ -40,6 +40,9 @@ class AmazonListing(models.Model):
     computed_target_price = fields.Monetary()
     last_price_pull_date = fields.Datetime(readonly=True)
     last_price_push_date = fields.Datetime(readonly=True)
+    price_history_ids = fields.One2many(
+        "amz.price.history", "listing_id", "Price History"
+    )
 
     _amz_listing_backend_sku_unique = models.Constraint(
         "UNIQUE(backend_id, seller_sku)",
@@ -68,5 +71,25 @@ class AmazonListing(models.Model):
                 "product_id": product.id,
                 "seller_sku": sku,
                 "asin": asin,
+            }
+        )
+
+    def _log_price_change(self, new_price, trigger, rule=None):
+        """Record a price *change* to amz.price.history for this listing.
+
+        No-op when the pushed price equals the current one — the audit trail
+        tracks changes, not every (often unchanged) cron push.
+        """
+        self.ensure_one()
+        old_price = self.current_list_price
+        if self.currency_id.is_zero(new_price - old_price):
+            return
+        self.env["amz.price.history"].create(
+            {
+                "listing_id": self.id,
+                "old_price": old_price,
+                "new_price": new_price,
+                "pricing_rule": rule or self.backend_id.pricing_mode,
+                "trigger": trigger,
             }
         )

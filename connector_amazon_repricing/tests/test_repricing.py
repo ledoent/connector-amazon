@@ -111,6 +111,35 @@ class TestRepricing(TransactionCase):
         self.listing.invalidate_recordset()
         self.assertEqual(self.listing.buy_box_winner, "us")
 
+    # ── competitor offer history ──────────────────────────────────────────────
+
+    def test_notification_persists_own_offer_snapshot(self):
+        payload = _make_notification(
+            AMZ_ASIN, 25.00, seller_id=SELLER_ID, is_winner=True
+        )
+        self.backend._process_offer_notification(payload)
+        snaps = self.env["amz.offer.snapshot"].search(
+            [("listing_id", "=", self.listing.id)]
+        )
+        self.assertEqual(len(snaps), 1)
+        self.assertEqual(snaps.seller_id, SELLER_ID)
+        self.assertTrue(snaps.is_own_offer)
+        self.assertTrue(snaps.is_buy_box_winner)
+        self.assertAlmostEqual(snaps.price, 25.00, places=2)
+        self.assertEqual(snaps.asin, AMZ_ASIN)
+
+    def test_notification_snapshot_marks_competitor(self):
+        payload = _make_notification(
+            AMZ_ASIN, 30.00, seller_id="OTHER_SELLER", is_winner=True
+        )
+        self.backend._process_offer_notification(payload)
+        snap = self.env["amz.offer.snapshot"].search(
+            [("listing_id", "=", self.listing.id)]
+        )
+        self.assertEqual(len(snap), 1)
+        self.assertFalse(snap.is_own_offer)
+        self.assertTrue(snap.is_buy_box_winner)
+
     def test_process_notification_no_buy_box_skips(self):
         self.listing.buy_box_price = 0.0
         payload = {

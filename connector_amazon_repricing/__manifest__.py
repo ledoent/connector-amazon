@@ -10,7 +10,9 @@
     "depends": ["connector_amazon_pricing"],
     "external_dependencies": {"python": ["boto3", "python-amazon-sp-api"]},
     "data": [
+        "security/ir.model.access.csv",
         "data/ir_cron.xml",
+        "views/amz_offer_snapshot_views.xml",
         "views/amz_backend_views.xml",
     ],
     "maintainers": ["dnplkndll"],

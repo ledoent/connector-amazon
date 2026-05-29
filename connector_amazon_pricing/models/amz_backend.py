@@ -132,7 +132,9 @@ class AmazonBackend(models.Model):
         self.ensure_one()
         if not self.seller_id:
             raise UserError(self.env._("Amazon Seller ID is required to push prices."))
-        self.with_delay(description=f"Push prices for {self.name}")._push_prices()
+        self.with_delay(description=f"Push prices for {self.name}")._push_prices(
+            trigger="manual"
+        )
         return {
             "type": "ir.actions.client",
             "tag": "display_notification",
@@ -143,7 +145,7 @@ class AmazonBackend(models.Model):
             },
         }
 
-    def _push_prices(self):
+    def _push_prices(self, trigger="cron"):
         """Push computed prices to Amazon via Listings Items API PATCH."""
         self.ensure_one()
         from sp_api.api import ListingsItems
@@ -158,6 +160,7 @@ class AmazonBackend(models.Model):
                 continue
             try:
                 self._patch_listing_price_to_api(api, listing, price)
+                listing._log_price_change(price, trigger)
                 listing.write(
                     {
                         "current_list_price": price,

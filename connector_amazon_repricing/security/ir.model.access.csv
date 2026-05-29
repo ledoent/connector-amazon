@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_amz_offer_snapshot_manager,amz.offer.snapshot manager,model_amz_offer_snapshot,connector_amazon.group_amz_manager,1,1,1,1
+access_amz_offer_snapshot_user,amz.offer.snapshot user,model_amz_offer_snapshot,connector_amazon.group_amz_user,1,0,0,0
