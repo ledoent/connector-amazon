@@ -11,7 +11,8 @@ Features:
 - **Competitor offer history** — every ``ANY_OFFER_CHANGED`` payload persists
   one ``amz.offer.snapshot`` per offer (seller, price, buy-box winner, ours or
   not), under **Amazon → Competitor Offers** — the basis for buy-box win-rate
-  analytics.
+  analytics. This is append-only and high-volume on popular ASINs; schedule a
+  retention/cleanup job (e.g. ``ir.cron`` autovacuum on ``date``) to taste.
 - **Setup Notifications button** — registers the SQS destination and
   ``ANY_OFFER_CHANGED`` subscription with the SP-API Notifications API in
   one click.
