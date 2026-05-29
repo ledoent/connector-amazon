@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_amz_backend_form_return" model="ir.ui.view">
+        <field name="name">amz.backend.form.return</field>
+        <field name="model">amz.backend</field>
+        <field name="inherit_id" ref="connector_amazon.view_amz_backend_form" />
+        <field name="arch" type="xml">
+            <header position="inside">
+                <button
+                    name="action_sync_returns"
+                    string="Sync Returns"
+                    type="object"
+                    class="btn-secondary"
+                />
+            </header>
+            <xpath expr="//group[@name='import_settings']" position="after">
+                <group name="return_settings" string="Returns">
+                    <field name="amazon_returns_enabled" />
+                    <field name="amazon_auto_return_picking" />
+                    <field name="amazon_auto_credit_note" />
+                    <field name="last_return_sync_date" />
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>

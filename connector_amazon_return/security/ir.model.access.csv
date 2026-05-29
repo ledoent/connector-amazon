@@ -1,0 +1,7 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_amz_return_manager,amz.return manager,model_amz_return,connector_amazon.group_amz_manager,1,1,1,1
+access_amz_return_user,amz.return user,model_amz_return,connector_amazon.group_amz_user,1,0,0,0
+access_amz_return_line_manager,amz.return.line manager,model_amz_return_line,connector_amazon.group_amz_manager,1,1,1,1
+access_amz_return_line_user,amz.return.line user,model_amz_return_line,connector_amazon.group_amz_user,1,0,0,0
+access_amz_return_report_manager,amz.return.report manager,model_amz_return_report,connector_amazon.group_amz_manager,1,1,1,1
+access_amz_return_report_user,amz.return.report user,model_amz_return_report,connector_amazon.group_amz_user,1,0,0,0
