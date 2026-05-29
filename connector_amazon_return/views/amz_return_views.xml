@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_amz_return_list" model="ir.ui.view">
+        <field name="name">amz.return.list</field>
+        <field name="model">amz.return</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="rma_id" />
+                <field name="amazon_order_id" />
+                <field name="return_date" />
+                <field name="order_id" optional="show" />
+                <field name="return_picking_id" optional="show" />
+                <field name="credit_note_id" optional="show" />
+                <field name="state" />
+            </list>
+        </field>
+    </record>
+
+    <record id="view_amz_return_form" model="ir.ui.view">
+        <field name="name">amz.return.form</field>
+        <field name="model">amz.return</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="rma_id" />
+                            <field name="amazon_order_id" />
+                            <field name="order_id" />
+                            <field name="return_date" />
+                            <field name="amazon_status" />
+                            <field name="state" />
+                        </group>
+                        <group>
+                            <field name="return_picking_id" />
+                            <field name="credit_note_id" />
+                            <field name="refund_event_id" />
+                            <field name="currency_id" />
+                        </group>
+                    </group>
+                    <notebook>
+                        <page name="lines" string="Returned Items">
+                            <field name="line_ids">
+                                <list>
+                                    <field name="seller_sku" />
+                                    <field name="asin" optional="show" />
+                                    <field name="product_id" />
+                                    <field name="quantity" />
+                                    <field name="return_reason" />
+                                    <field name="order_item_id" optional="hide" />
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_amz_return_search" model="ir.ui.view">
+        <field name="name">amz.return.search</field>
+        <field name="model">amz.return</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="rma_id" />
+                <field name="amazon_order_id" />
+                <field name="order_id" />
+                <filter name="new" string="New" domain="[('state', '=', 'new')]" />
+                <filter
+                    name="credited"
+                    string="Credited"
+                    domain="[('state', '=', 'credited')]"
+                />
+                <group>
+                    <filter
+                        name="group_state"
+                        string="Status"
+                        context="{'group_by': 'state'}"
+                    />
+                    <filter
+                        name="group_backend"
+                        string="Backend"
+                        context="{'group_by': 'backend_id'}"
+                    />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_amz_return" model="ir.actions.act_window">
+        <field name="name">Returns</field>
+        <field name="res_model">amz.return</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_amz_return_search" />
+    </record>
+
+    <menuitem
+        id="menu_amz_returns"
+        name="Returns"
+        parent="connector_amazon.menu_amz_root"
+        action="action_amz_return"
+        sequence="40"
+    />
+</odoo>
