@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_amz_fba_inventory_list" model="ir.ui.view">
+        <field name="name">amz.fba.inventory.list</field>
+        <field name="model">amz.fba.inventory</field>
+        <field name="arch" type="xml">
+            <list decoration-warning="drift != 0">
+                <field name="seller_sku" />
+                <field name="asin" optional="show" />
+                <field name="product_id" optional="show" />
+                <field name="fulfillable_qty" />
+                <field name="inbound_qty" optional="show" />
+                <field name="reserved_qty" optional="hide" />
+                <field name="unsellable_qty" optional="hide" />
+                <field name="total_fba_qty" optional="show" />
+                <field name="odoo_qty" />
+                <field name="drift" />
+                <field name="last_sync_date" optional="hide" />
+            </list>
+        </field>
+    </record>
+
+    <record id="view_amz_fba_inventory_form" model="ir.ui.view">
+        <field name="name">amz.fba.inventory.form</field>
+        <field name="model">amz.fba.inventory</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <group string="Listing">
+                            <field name="backend_id" />
+                            <field name="seller_sku" />
+                            <field name="asin" />
+                            <field name="fnsku" />
+                            <field name="product_id" />
+                        </group>
+                        <group string="Quantities">
+                            <field name="fulfillable_qty" />
+                            <field name="inbound_qty" />
+                            <field name="reserved_qty" />
+                            <field name="unsellable_qty" />
+                            <field name="total_fba_qty" />
+                            <field name="odoo_qty" />
+                            <field name="drift" />
+                            <field name="last_sync_date" />
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_amz_fba_inventory_search" model="ir.ui.view">
+        <field name="name">amz.fba.inventory.search</field>
+        <field name="model">amz.fba.inventory</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="seller_sku" />
+                <field name="asin" />
+                <field name="product_id" />
+                <field name="backend_id" />
+                <filter name="drift" string="Drift" domain="[('drift', '!=', 0)]" />
+                <group>
+                    <filter
+                        name="group_backend"
+                        string="Backend"
+                        context="{'group_by': 'backend_id'}"
+                    />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_amz_fba_inventory" model="ir.actions.act_window">
+        <field name="name">FBA Inventory</field>
+        <field name="res_model">amz.fba.inventory</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_amz_fba_inventory_search" />
+    </record>
+
+    <menuitem
+        id="menu_amz_fba_inventory"
+        name="FBA Inventory"
+        parent="connector_amazon.menu_amz_root"
+        action="action_amz_fba_inventory"
+        sequence="30"
+        groups="connector_amazon.group_amz_user"
+    />
+</odoo>

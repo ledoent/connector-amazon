@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_amz_fba_inventory_manager,amz.fba.inventory manager,model_amz_fba_inventory,connector_amazon.group_amz_manager,1,1,1,1
+access_amz_fba_inventory_user,amz.fba.inventory user,model_amz_fba_inventory,connector_amazon.group_amz_user,1,0,0,0

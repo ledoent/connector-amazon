@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_amz_backend_form_fba" model="ir.ui.view">
+        <field name="name">amz.backend.form.fba</field>
+        <field name="model">amz.backend</field>
+        <field name="inherit_id" ref="connector_amazon.view_amz_backend_form" />
+        <field name="arch" type="xml">
+            <header position="inside">
+                <button
+                    name="action_sync_fba_inventory"
+                    string="Sync FBA Inventory"
+                    type="object"
+                    class="btn-secondary"
+                />
+            </header>
+            <xpath expr="//group[@name='import_settings']" position="after">
+                <group name="fba_settings" string="FBA">
+                    <field name="amazon_fba_enabled" />
+                    <field name="last_fba_sync_date" />
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>
