@@ -57,42 +57,49 @@ class AmazonBackend(models.Model):
                 )
             )
         from sp_api.api import ListingsItems
+        from sp_api.base import SellingApiException
 
         api = self._get_api(ListingsItems)
         imported = 0
         next_token = None
 
-        while True:
-            kwargs = {
-                "sellerId": self.seller_id,
-                "marketplaceIds": [self.marketplace_id],
-            }
-            if next_token:
-                kwargs["pageToken"] = next_token
+        try:
+            while True:
+                kwargs = {
+                    "sellerId": self.seller_id,
+                    "marketplaceIds": [self.marketplace_id],
+                }
+                if next_token:
+                    kwargs["pageToken"] = next_token
 
-            result = api.search_listings_items(**kwargs)
-            payload = result.payload
+                result = api.search_listings_items(**kwargs)
+                payload = result.payload
 
-            for item in payload.get("items", []):
-                sku = item.get("sku")
-                if not sku:
-                    continue
-                asin = None
-                summaries = item.get("summaries", [])
-                if summaries:
-                    asin = summaries[0].get("asin")
-                product = self.env["product.product"].search(
-                    [("default_code", "=", sku)], limit=1
-                )
-                if not product:
-                    _logger.warning("no product found for SKU %s; skipping", sku)
-                    continue
-                self.env["amz.listing"]._upsert(self, product, sku, asin)
-                imported += 1
+                for item in payload.get("items", []):
+                    sku = item.get("sku")
+                    if not sku:
+                        continue
+                    asin = None
+                    summaries = item.get("summaries", [])
+                    if summaries:
+                        asin = summaries[0].get("asin")
+                    product = self.env["product.product"].search(
+                        [("default_code", "=", sku)], limit=1
+                    )
+                    if not product:
+                        _logger.warning("no product found for SKU %s; skipping", sku)
+                        continue
+                    self.env["amz.listing"]._upsert(self, product, sku, asin)
+                    imported += 1
 
-            next_token = payload.get("pagination", {}).get("nextToken")
-            if not next_token:
-                break
+                next_token = payload.get("pagination", {}).get("nextToken")
+                if not next_token:
+                    break
+        except SellingApiException as exc:
+            _logger.error(
+                "Amazon ListingsItems failed for backend %s: %s", self.name, exc
+            )
+            raise
 
         return {
             "type": "ir.actions.client",
@@ -212,15 +219,24 @@ class AmazonBackend(models.Model):
         updated = 0
         for i in range(0, len(listings), _COMPETITIVE_PRICE_BATCH):
             batch = listings[i : i + _COMPETITIVE_PRICE_BATCH]
+            # Multiple SKUs can share an ASIN; map each ASIN to the full set of
+            # listings so competitive prices propagate to all of them.
+            batch_by_asin = {}
+            for lst in batch:
+                batch_by_asin.setdefault(lst.asin, self.env["amz.listing"])
+                batch_by_asin[lst.asin] |= lst
             try:
                 result = api.get_competitive_pricing_for_asins(
-                    asin_list=batch.mapped("asin"),
+                    asin_list=list(batch_by_asin),
                     MarketplaceId=self.marketplace_id,
                 )
                 for item in result.payload:
                     if item.get("status") != "Success":
                         continue
                     asin = item.get("ASIN")
+                    listing = batch_by_asin.get(asin)
+                    if not listing:
+                        continue
                     competitive_prices = (
                         item.get("Product", {})
                         .get("CompetitivePricing", {})
@@ -242,9 +258,6 @@ class AmazonBackend(models.Model):
                         .get("ListingPrice", {})
                         .get("Amount", 0)
                     )
-                    listing = batch.filtered(lambda lst, a=asin: lst.asin == a)
-                    if not listing:
-                        continue
                     listing.write(
                         {
                             "buy_box_price": amount,
@@ -256,7 +269,7 @@ class AmazonBackend(models.Model):
                             "last_price_pull_date": fields.Datetime.now(),
                         }
                     )
-                    updated += 1
+                    updated += len(listing)
             except Exception as exc:
                 _logger.warning(
                     "competitive price pull failed for backend %s: %s", self.name, exc

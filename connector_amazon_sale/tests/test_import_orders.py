@@ -9,6 +9,11 @@ from odoo.addons.connector_amazon.tests.common import (
     SANDBOX_GET_ORDERS_PAYLOAD,
 )
 
+try:
+    from sp_api.base import SellingApiException
+except ImportError:
+    SellingApiException = Exception
+
 AMZ_ORDER_ID = "902-1845936-5435065"
 
 
@@ -152,3 +157,41 @@ class TestImportOrders(TransactionCase):
             sale_line.product_id,
             "SKU with no matching product must still create a sale.order.line",
         )
+
+    @patch("sp_api.api.Orders")
+    def test_import_order_api_error_skips_gracefully(self, mock_orders_class):
+        """SellingApiException from get_order_items must be logged and swallowed."""
+        api_instance = MagicMock()
+        mock_orders_class.return_value = api_instance
+        api_instance.get_order_items.side_effect = SellingApiException(
+            [{"code": "InvalidInput", "message": "Could not match input arguments"}],
+            headers={},
+        )
+
+        with mute_logger("odoo.addons.connector_amazon_sale.models.amz_backend"):
+            self.backend._import_order("902-SANDBOX-TEST")
+
+        amz_order = self.env["amz.order"].search(
+            [
+                ("backend_id", "=", self.backend.id),
+                ("amz_order_id", "=", "902-SANDBOX-TEST"),
+            ]
+        )
+        self.assertFalse(amz_order, "No amz.order must be created when API call fails")
+
+    @patch("sp_api.api.Orders")
+    def test_import_orders_sandbox_uses_test_case_key(self, mock_orders_class):
+        """Sandbox mode must call get_orders with CreatedAfter=TEST_CASE_200."""
+        api_instance = MagicMock()
+        mock_orders_class.return_value = api_instance
+        response = MagicMock()
+        response.payload = {"Orders": []}
+        api_instance.get_orders.return_value = response
+
+        self.backend.sandbox = True
+        with patch.object(type(self.backend), "with_delay", return_value=MagicMock()):
+            self.backend.import_orders()
+
+        call_kwargs = api_instance.get_orders.call_args.kwargs
+        self.assertEqual(call_kwargs.get("CreatedAfter"), "TEST_CASE_200")
+        self.assertNotIn("LastUpdatedAfter", call_kwargs)

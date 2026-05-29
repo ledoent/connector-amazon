@@ -64,35 +64,44 @@ class AmazonBackend(models.Model):
         """Pull closed settlement groups from Amazon Finances API."""
         self.ensure_one()
         from sp_api.api import Finances
+        from sp_api.base import SellingApiException
 
         api = self._get_api(Finances)
         since = self.last_settlement_sync_date or (
             fields.Datetime.now() - datetime.timedelta(days=90)
         )
         next_token = None
-        while True:
-            kwargs = {
-                "FinancialEventGroupStartedAfter": since.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "MaxResults": 100,
-            }
-            if next_token:
-                kwargs["NextToken"] = next_token
-            result = api.list_financial_event_groups(**kwargs)
-            payload = result.payload
-            for group_data in payload.get("FinancialEventGroupList", []):
-                if group_data.get("ProcessingStatus") == "Closed":
-                    try:
-                        self._process_settlement_group(api, group_data)
-                    except Exception as exc:
-                        _logger.warning(
-                            "settlement group %s processing failed on backend %s: %s",
-                            group_data.get("FinancialEventGroupId"),
-                            self.name,
-                            exc,
-                        )
-            next_token = result.next_token
-            if not next_token:
-                break
+        try:
+            while True:
+                kwargs = {
+                    "FinancialEventGroupStartedAfter": since.strftime(
+                        "%Y-%m-%dT%H:%M:%SZ"
+                    ),
+                    "MaxResults": 100,
+                }
+                if next_token:
+                    kwargs["NextToken"] = next_token
+                result = api.list_financial_event_groups(**kwargs)
+                payload = result.payload
+                for group_data in payload.get("FinancialEventGroupList", []):
+                    if group_data.get("ProcessingStatus") == "Closed":
+                        try:
+                            self._process_settlement_group(api, group_data)
+                        except Exception as exc:
+                            _logger.warning(
+                                "settlement group %s failed on backend %s: %s",
+                                group_data.get("FinancialEventGroupId"),
+                                self.name,
+                                exc,
+                            )
+                next_token = result.next_token
+                if not next_token:
+                    break
+        except SellingApiException as exc:
+            _logger.error(
+                "Amazon Finances API failed for backend %s: %s", self.name, exc
+            )
+            raise
         self.last_settlement_sync_date = fields.Datetime.now()
 
     def _process_settlement_group(self, api, group_data):
@@ -150,7 +159,7 @@ class AmazonBackend(models.Model):
 
     def _parse_shipment_events(self, group, events):
         """Aggregate Principal, Commission, and FBA fees per ShipmentEvent."""
-        Event = self.env["amz.financial.event"]
+        vals_list = []
         for event in events:
             order_id = event.get("AmazonOrderId")
             posted_date = _parse_amz_dt(event.get("PostedDate"))
@@ -174,7 +183,7 @@ class AmazonBackend(models.Model):
                 "posted_date": posted_date,
             }
             if principal:
-                Event.create(
+                vals_list.append(
                     {
                         **base,
                         "event_type": "shipment",
@@ -183,7 +192,7 @@ class AmazonBackend(models.Model):
                     }
                 )
             if commission:
-                Event.create(
+                vals_list.append(
                     {
                         **base,
                         "event_type": "referral_fee",
@@ -192,7 +201,7 @@ class AmazonBackend(models.Model):
                     }
                 )
             if fba:
-                Event.create(
+                vals_list.append(
                     {
                         **base,
                         "event_type": "fba_fee",
@@ -200,10 +209,12 @@ class AmazonBackend(models.Model):
                         "fee_description": "FBAFee",
                     }
                 )
+        if vals_list:
+            self.env["amz.financial.event"].create(vals_list)
 
     def _parse_refund_events(self, group, events):
         """Aggregate Principal charges from RefundEvents."""
-        Event = self.env["amz.financial.event"]
+        vals_list = []
         for event in events:
             order_id = event.get("AmazonOrderId")
             posted_date = _parse_amz_dt(event.get("PostedDate"))
@@ -213,7 +224,7 @@ class AmazonBackend(models.Model):
                     if charge.get("ChargeType") == "Principal":
                         total += float(charge.get("ChargeAmount", {}).get("Amount", 0))
             if total:
-                Event.create(
+                vals_list.append(
                     {
                         "settlement_group_id": group.id,
                         "event_type": "refund",
@@ -223,12 +234,14 @@ class AmazonBackend(models.Model):
                         "fee_description": "Refund",
                     }
                 )
+        if vals_list:
+            self.env["amz.financial.event"].create(vals_list)
 
     def _parse_fee_events(
         self, group, events, event_type, default_description, description_key=None
     ):
         """Create one financial event per fee event."""
-        Event = self.env["amz.financial.event"]
+        vals_list = []
         for event in events:
             posted_date = _parse_amz_dt(event.get("PostedDate"))
             total = sum(
@@ -241,7 +254,7 @@ class AmazonBackend(models.Model):
                     if description_key
                     else default_description
                 )
-                Event.create(
+                vals_list.append(
                     {
                         "settlement_group_id": group.id,
                         "event_type": event_type,
@@ -250,6 +263,8 @@ class AmazonBackend(models.Model):
                         "fee_description": desc,
                     }
                 )
+        if vals_list:
+            self.env["amz.financial.event"].create(vals_list)
 
     def _parse_service_fee_events(self, group, events):
         """Create one service_fee event per ServiceFeeEvent."""
@@ -264,6 +279,15 @@ class AmazonBackend(models.Model):
         if not self.amazon_settlement_journal_id:
             _logger.warning(
                 "no settlement journal configured for backend %s; skipping entry",
+                self.name,
+            )
+            return
+        disbursement_account = self.amazon_settlement_journal_id.default_account_id
+        if not disbursement_account:
+            _logger.warning(
+                "settlement journal %s has no default account on backend %s; "
+                "skipping entry",
+                self.amazon_settlement_journal_id.name,
                 self.name,
             )
             return
@@ -337,14 +361,42 @@ class AmazonBackend(models.Model):
                 0,
                 0,
                 {
-                    "account_id": (
-                        self.amazon_settlement_journal_id.default_account_id.id
-                    ),
+                    "account_id": disbursement_account.id,
                     "name": f"Amazon disbursement — {group.amazon_group_id}",
                     "debit": net,
                 },
             )
         )
+
+        # Amazon settlements carry charge types this module does not model yet
+        # (tax collected, shipping, promotions). Their net is the gap between the
+        # disbursement and modeled income/fees. Odoo rejects an unbalanced move at
+        # create() time, so book the gap to an adjustment line for later review —
+        # this keeps the real disbursement intact and never drops the settlement.
+        currency = group.currency_id or self.env.company.currency_id
+        imbalance = currency.round(
+            sum(ln[2].get("debit", 0.0) for ln in lines)
+            - sum(ln[2].get("credit", 0.0) for ln in lines)
+        )
+        if not currency.is_zero(imbalance):
+            adjustment_account = (
+                self.amazon_income_account_id or self.amazon_fee_account_id
+            )
+            if not adjustment_account:
+                _logger.warning(
+                    "settlement %s is unbalanced by %s but no income/fee account is "
+                    "configured to absorb it; skipping entry",
+                    group.amazon_group_id,
+                    imbalance,
+                )
+                return
+            adj = {
+                "account_id": adjustment_account.id,
+                "name": f"Amazon unclassified adjustment — {group.amazon_group_id}",
+            }
+            # debits exceed credits → balance with a credit, and vice versa
+            adj["credit" if imbalance > 0 else "debit"] = abs(imbalance)
+            lines.append((0, 0, adj))
 
         move = self.env["account.move"].create(
             {
@@ -355,8 +407,8 @@ class AmazonBackend(models.Model):
                 "move_type": "entry",
             }
         )
-        move.action_post()
         group.account_move_id = move
+        move.action_post()
 
     def sync_settlements(self):
         """Cron entry point — enqueue settlement pull for each active backend."""

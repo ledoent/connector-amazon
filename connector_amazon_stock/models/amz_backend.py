@@ -50,11 +50,25 @@ class AmazonBackend(models.Model):
         carrier_name = picking.carrier_id.name if picking.carrier_id else ""
         carrier_code = _map_carrier_code(carrier_name)
 
+        ship_date = picking.date_done or picking.scheduled_date
+        if not ship_date:
+            _logger.warning(
+                "Picking %s has no ship date; skipping tracking push.", picking.name
+            )
+            return
+
         # Build order items list from amz.order.line
         amz_order = self.env["amz.order"].search(
             [("backend_id", "=", self.id), ("amz_order_id", "=", amazon_order_id)],
             limit=1,
         )
+        if not amz_order:
+            _logger.warning(
+                "No amz.order found for %s on backend %s; skipping tracking push.",
+                amazon_order_id,
+                self.name,
+            )
+            return
         order_items = [
             {"orderItemId": ln.order_item_id, "quantity": ln.quantity_ordered}
             for ln in amz_order.amz_order_line_ids
@@ -72,7 +86,7 @@ class AmazonBackend(models.Model):
                         "carrierCode": carrier_code,
                         "carrierName": carrier_name,
                         "trackingNumber": tracking_ref,
-                        "shipDate": picking.date_done.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                        "shipDate": ship_date.strftime("%Y-%m-%dT%H:%M:%SZ"),
                         "orderItems": order_items,
                     },
                 },

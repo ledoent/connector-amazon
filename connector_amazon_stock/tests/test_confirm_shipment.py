@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 from odoo.tests.common import TransactionCase
+from odoo.tools import mute_logger
 
 AMZ_ORDER_ID = "902-1845936-5435065"
 
@@ -92,6 +93,56 @@ class TestConfirmShipment(TransactionCase):
         picking = self._make_picking(tracking_ref=None)
 
         self.backend._confirm_shipment(AMZ_ORDER_ID, picking.id)
+        api_instance.confirm_shipment.assert_not_called()
+
+    @patch("sp_api.api.Orders")
+    def test_confirm_shipment_skips_when_date_done_and_scheduled_date_null(
+        self, mock_orders_class
+    ):
+        """No date_done and no scheduled_date must skip the API call."""
+        api_instance = MagicMock()
+        mock_orders_class.return_value = api_instance
+        picking = self._make_picking(tracking_ref="TRACK123")
+        picking.date_done = False
+        picking.scheduled_date = False
+
+        with mute_logger("odoo.addons.connector_amazon_stock.models.amz_backend"):
+            self.backend._confirm_shipment(AMZ_ORDER_ID, picking.id)
+
+        api_instance.confirm_shipment.assert_not_called()
+
+    @patch("sp_api.api.Orders")
+    def test_confirm_shipment_falls_back_to_scheduled_date(self, mock_orders_class):
+        """When date_done is not set, scheduled_date is used as ship date."""
+        import datetime
+
+        api_instance = MagicMock()
+        mock_orders_class.return_value = api_instance
+        picking = self._make_picking(tracking_ref="TRACK456")
+        picking.date_done = False
+        picking.scheduled_date = datetime.datetime(2026, 6, 1, 9, 0, 0)
+
+        self.backend._confirm_shipment(AMZ_ORDER_ID, picking.id)
+
+        api_instance.confirm_shipment.assert_called_once()
+        ship_date = api_instance.confirm_shipment.call_args.kwargs["payload"][
+            "packageDetail"
+        ]["shipDate"]
+        self.assertIn("2026-06-01", ship_date)
+
+    @patch("sp_api.api.Orders")
+    def test_confirm_shipment_skips_when_amz_order_not_found(self, mock_orders_class):
+        """No matching amz.order must skip the API call."""
+        import datetime
+
+        api_instance = MagicMock()
+        mock_orders_class.return_value = api_instance
+        picking = self._make_picking(tracking_ref="TRACK789")
+        picking.date_done = datetime.datetime(2026, 5, 25, 10, 0, 0)
+
+        with mute_logger("odoo.addons.connector_amazon_stock.models.amz_backend"):
+            self.backend._confirm_shipment("902-NOSUCHORDER-0000", picking.id)
+
         api_instance.confirm_shipment.assert_not_called()
 
     @patch("sp_api.api.Orders")

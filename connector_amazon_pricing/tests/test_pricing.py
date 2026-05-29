@@ -8,6 +8,11 @@ from odoo.addons.connector_amazon.tests.common import (
     SANDBOX_GET_ORDER_ITEMS_PAYLOAD,
 )
 
+try:
+    from sp_api.base import SellingApiException
+except ImportError:
+    SellingApiException = Exception
+
 AMZ_ORDER_ID = "902-1845936-5435065"
 AMZ_SKU = "NABetaASINB00551Q3CS"
 AMZ_ASIN = "B00551Q3CS"
@@ -136,6 +141,22 @@ class TestPricing(TransactionCase):
             [("backend_id", "=", self.backend.id), ("seller_sku", "=", "NO_MATCH_SKU")]
         )
         self.assertFalse(listing)
+
+    @patch("sp_api.api.ListingsItems")
+    def test_import_listings_api_error_propagates(self, mock_listings_class):
+        """SellingApiException from the API must bubble up to the caller."""
+        api_instance = MagicMock()
+        mock_listings_class.return_value = api_instance
+        api_instance.search_listings_items.side_effect = SellingApiException(
+            [{"code": "QuotaExceeded", "message": "Too many requests"}],
+            headers={},
+        )
+
+        with (
+            mute_logger("odoo.addons.connector_amazon_pricing.models.amz_backend"),
+            self.assertRaises(SellingApiException),
+        ):
+            self.backend.action_import_listings()
 
     @patch("sp_api.api.ListingsItems")
     def test_import_listings_follows_pagination(self, mock_listings_class):
@@ -391,6 +412,30 @@ class TestCompetitivePricing(TransactionCase):
         self.listing.invalidate_recordset()
         self.assertAlmostEqual(self.listing.buy_box_price, 29.99)
         self.assertEqual(self.listing.buy_box_winner, "competitor")
+
+    def test_sync_competitive_prices_updates_all_skus_sharing_asin(self):
+        """Two SKUs on the same ASIN must both receive the buy-box update."""
+        product2 = self.env["product.product"].create(
+            {"name": "Second SKU same ASIN", "default_code": "SKU_SHARED_2"}
+        )
+        listing2 = self.env["amz.listing"].create(
+            {
+                "backend_id": self.backend.id,
+                "product_id": product2.id,
+                "seller_sku": "SKU_SHARED_2",
+                "asin": AMZ_ASIN,
+            }
+        )
+        api = _mock_competitive_api(self, SANDBOX_COMPETITIVE_PAYLOAD)
+        with patch.object(type(self.backend), "_get_api", return_value=api):
+            self.backend._sync_competitive_prices()
+        # API should be asked for the ASIN only once (deduped), not per-SKU.
+        asin_arg = api.get_competitive_pricing_for_asins.call_args.kwargs["asin_list"]
+        self.assertEqual(asin_arg.count(AMZ_ASIN), 1)
+        self.listing.invalidate_recordset()
+        listing2.invalidate_recordset()
+        self.assertAlmostEqual(self.listing.buy_box_price, 29.99)
+        self.assertAlmostEqual(listing2.buy_box_price, 29.99)
 
     def test_sync_competitive_prices_marks_us_as_winner(self):
         payload = [

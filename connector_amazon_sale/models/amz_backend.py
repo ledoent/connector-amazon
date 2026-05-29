@@ -40,10 +40,16 @@ class AmazonBackend(models.Model):
 
         try:
             while True:
-                kwargs = {
-                    "MarketplaceIds": [self.marketplace_id],
-                    "LastUpdatedAfter": since.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                }
+                if self.sandbox:
+                    kwargs = {
+                        "MarketplaceIds": [self.marketplace_id],
+                        "CreatedAfter": "TEST_CASE_200",
+                    }
+                else:
+                    kwargs = {
+                        "MarketplaceIds": [self.marketplace_id],
+                        "LastUpdatedAfter": since.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    }
                 if next_token:
                     kwargs["NextToken"] = next_token
 
@@ -74,11 +80,21 @@ class AmazonBackend(models.Model):
         """Fetch full order data and create/update amz.order + sale.order."""
         self.ensure_one()
         from sp_api.api import Orders
+        from sp_api.base import SellingApiException
 
         api = self._get_api(Orders)
 
-        items_res = api.get_order_items(amazon_order_id)
-        address_res = api.get_order_address(amazon_order_id)
+        try:
+            items_res = api.get_order_items(amazon_order_id)
+            address_res = api.get_order_address(amazon_order_id)
+        except SellingApiException as exc:
+            _logger.warning(
+                "could not fetch order details for %s on backend %s: %s",
+                amazon_order_id,
+                self.name,
+                exc,
+            )
+            return
 
         items_payload = items_res.payload
         address_payload = address_res.payload
