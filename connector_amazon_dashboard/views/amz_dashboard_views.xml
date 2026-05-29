@@ -4,99 +4,349 @@
         <field name="name">amz.dashboard.form</field>
         <field name="model">amz.dashboard</field>
         <field name="arch" type="xml">
-            <form create="false" edit="false">
+            <form create="false" class="o_amz_dashboard">
                 <sheet>
-                    <div class="oe_title">
-                        <h1>Amazon Dashboard</h1>
-                    </div>
-                    <group>
-                        <field name="backend_id" />
-                        <field name="currency_id" invisible="1" />
-                        <field
-                            name="health_status"
-                            widget="badge"
-                            decoration-success="health_status == 'ok'"
-                            decoration-danger="health_status == 'attention'"
+                    <field name="currency_id" invisible="1" />
+
+                    <!-- Hero: the health verdict is the dominant signal -->
+                    <div class="amz_hero">
+                        <div
+                            class="amz_hero_alert"
+                            invisible="health_status != 'attention'"
                         />
-                    </group>
-                    <group>
-                        <group string="Sales">
-                            <field name="orders_total" />
-                            <field name="orders_unshipped" />
-                            <button
-                                name="action_open_unshipped"
-                                type="object"
-                                string="View unshipped"
-                                class="btn-link"
+                        <div class="amz_hero_left">
+                            <div class="amz_eyebrow">Amazon Selling Partner</div>
+                            <div class="amz_hero_title">Operations Dashboard</div>
+                            <div class="amz_hero_backend">
+                                <span>Marketplace:</span>
+                                <field
+                                    name="backend_id"
+                                    nolabel="1"
+                                    placeholder="All active backends"
+                                    options="{'no_create': True, 'no_open': True}"
+                                />
+                            </div>
+                        </div>
+                        <div class="amz_hero_health">
+                            <div class="amz_hero_health_label">System Health</div>
+                            <field
+                                name="health_status"
+                                widget="badge"
+                                nolabel="1"
+                                decoration-success="health_status == 'ok'"
+                                decoration-danger="health_status == 'attention'"
                             />
-                        </group>
-                        <group string="Pricing &amp; Repricing">
-                            <field name="listings_total" />
-                            <field name="listings_buybox_us" />
-                            <field name="buybox_win_rate" widget="percentage" />
-                            <field name="price_changes_7d" />
-                            <field name="offers_7d" />
-                            <button
-                                name="action_open_price_changes"
-                                type="object"
-                                string="View price changes"
-                                class="btn-link"
-                            />
-                        </group>
-                    </group>
-                    <group>
-                        <group string="FBA">
-                            <field name="fba_skus" />
-                            <field name="fba_drift_skus" />
-                            <field name="fba_total_drift" />
-                            <button
-                                name="action_open_fba_drift"
-                                type="object"
-                                string="View drift"
-                                class="btn-link"
-                            />
-                        </group>
-                        <group string="Settlements">
-                            <field name="settlement_groups" />
-                            <field name="settlement_moves_draft" />
-                            <field name="recon_matched" />
-                            <field name="recon_variance" />
-                            <field name="recon_no_invoice" />
-                            <field name="recon_variance_amount" />
-                            <button
-                                name="action_open_recon_variance"
-                                type="object"
-                                string="View variances"
-                                class="btn-link"
-                            />
-                        </group>
-                    </group>
-                    <group>
-                        <group string="Returns">
-                            <field name="returns_open" />
-                            <field name="returns_credited" />
-                            <button
-                                name="action_open_returns_open"
-                                type="object"
-                                string="View open returns"
-                                class="btn-link"
-                            />
-                        </group>
-                        <group string="Health">
-                            <field name="failed_jobs" />
-                            <field name="last_order_sync" />
-                            <field name="last_settlement_sync" />
-                            <field name="last_return_sync" />
-                            <field name="last_fba_sync" />
-                            <field name="last_price_sync" />
-                            <button
-                                name="action_open_failed_jobs"
-                                type="object"
-                                string="View failed jobs"
-                                class="btn-link"
-                            />
-                        </group>
-                    </group>
+                        </div>
+                    </div>
+
+                    <!-- Sales -->
+                    <div class="amz_section">
+                        <div class="amz_section_head">
+                            <span class="amz_tick" />Sales
+                        </div>
+                        <div class="amz_grid">
+                            <div class="amz_kpi amz_kpi--accent">
+                                <span class="amz_kpi_label">Orders</span>
+                                <field name="orders_total" nolabel="1" />
+                            </div>
+                            <div class="amz_kpi">
+                                <span class="amz_kpi_label">Unshipped</span>
+                                <field
+                                    name="orders_unshipped"
+                                    nolabel="1"
+                                    class="amz_num--danger"
+                                    invisible="orders_unshipped == 0"
+                                />
+                                <field
+                                    name="orders_unshipped"
+                                    nolabel="1"
+                                    invisible="orders_unshipped != 0"
+                                />
+                                <span
+                                    class="amz_alert"
+                                    invisible="orders_unshipped == 0"
+                                >Needs action</span>
+                                <button
+                                    name="action_open_unshipped"
+                                    type="object"
+                                    string="View unshipped →"
+                                    class="amz_link"
+                                    invisible="orders_unshipped == 0"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pricing &amp; Repricing -->
+                    <div class="amz_section">
+                        <div class="amz_section_head">
+                            <span class="amz_tick" />Pricing &amp; Repricing
+                        </div>
+                        <div class="amz_grid">
+                            <div class="amz_kpi amz_kpi--accent">
+                                <span class="amz_kpi_label">Listings</span>
+                                <field name="listings_total" nolabel="1" />
+                            </div>
+                            <div class="amz_kpi">
+                                <span class="amz_kpi_label">Buy Box (Us)</span>
+                                <field name="listings_buybox_us" nolabel="1" />
+                            </div>
+                            <div class="amz_kpi amz_kpi--accent">
+                                <span class="amz_kpi_label">Buy Box Win %</span>
+                                <field
+                                    name="buybox_win_rate"
+                                    nolabel="1"
+                                    widget="percentage"
+                                />
+                            </div>
+                            <div class="amz_kpi">
+                                <span class="amz_kpi_label">Price Changes (7d)</span>
+                                <field name="price_changes_7d" nolabel="1" />
+                                <button
+                                    name="action_open_price_changes"
+                                    type="object"
+                                    string="View changes →"
+                                    class="amz_link"
+                                />
+                            </div>
+                            <div class="amz_kpi">
+                                <span
+                                    class="amz_kpi_label"
+                                >Competitor Offers (7d)</span>
+                                <field name="offers_7d" nolabel="1" />
+                            </div>
+                            <div class="amz_kpi amz_kpi--accent">
+                                <span class="amz_kpi_label">Avg Margin</span>
+                                <field
+                                    name="avg_margin"
+                                    nolabel="1"
+                                    widget="percentage"
+                                />
+                            </div>
+                            <div class="amz_kpi">
+                                <span class="amz_kpi_label">Below Target Margin</span>
+                                <field
+                                    name="listings_below_margin"
+                                    nolabel="1"
+                                    class="amz_num--danger"
+                                    invisible="listings_below_margin == 0"
+                                />
+                                <field
+                                    name="listings_below_margin"
+                                    nolabel="1"
+                                    invisible="listings_below_margin != 0"
+                                />
+                                <span
+                                    class="amz_alert"
+                                    invisible="listings_below_margin == 0"
+                                >Margin risk</span>
+                                <button
+                                    name="action_open_below_margin"
+                                    type="object"
+                                    string="View listings →"
+                                    class="amz_link"
+                                    invisible="listings_below_margin == 0"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- FBA -->
+                    <div class="amz_section">
+                        <div class="amz_section_head">
+                            <span class="amz_tick" />Fulfillment (FBA)
+                        </div>
+                        <div class="amz_grid">
+                            <div class="amz_kpi amz_kpi--accent">
+                                <span class="amz_kpi_label">FBA SKUs</span>
+                                <field name="fba_skus" nolabel="1" />
+                            </div>
+                            <div class="amz_kpi">
+                                <span class="amz_kpi_label">Drift SKUs</span>
+                                <field
+                                    name="fba_drift_skus"
+                                    nolabel="1"
+                                    class="amz_num--danger"
+                                    invisible="fba_drift_skus == 0"
+                                />
+                                <field
+                                    name="fba_drift_skus"
+                                    nolabel="1"
+                                    invisible="fba_drift_skus != 0"
+                                />
+                                <span
+                                    class="amz_alert"
+                                    invisible="fba_drift_skus == 0"
+                                >Reconcile</span>
+                                <button
+                                    name="action_open_fba_drift"
+                                    type="object"
+                                    string="View drift →"
+                                    class="amz_link"
+                                    invisible="fba_drift_skus == 0"
+                                />
+                            </div>
+                            <div class="amz_kpi">
+                                <span class="amz_kpi_label">Total Drift (units)</span>
+                                <field name="fba_total_drift" nolabel="1" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Settlements -->
+                    <div class="amz_section">
+                        <div class="amz_section_head">
+                            <span class="amz_tick" />Settlements
+                        </div>
+                        <div class="amz_grid">
+                            <div class="amz_kpi">
+                                <span class="amz_kpi_label">Settlements</span>
+                                <field name="settlement_groups" nolabel="1" />
+                            </div>
+                            <div class="amz_kpi">
+                                <span class="amz_kpi_label">Draft Entries</span>
+                                <field
+                                    name="settlement_moves_draft"
+                                    nolabel="1"
+                                    class="amz_num--warn"
+                                    invisible="settlement_moves_draft == 0"
+                                />
+                                <field
+                                    name="settlement_moves_draft"
+                                    nolabel="1"
+                                    invisible="settlement_moves_draft != 0"
+                                />
+                            </div>
+                            <div class="amz_kpi">
+                                <span class="amz_kpi_label">Matched</span>
+                                <field name="recon_matched" nolabel="1" />
+                            </div>
+                            <div class="amz_kpi">
+                                <span class="amz_kpi_label">Variances</span>
+                                <field
+                                    name="recon_variance"
+                                    nolabel="1"
+                                    class="amz_num--danger"
+                                    invisible="recon_variance == 0"
+                                />
+                                <field
+                                    name="recon_variance"
+                                    nolabel="1"
+                                    invisible="recon_variance != 0"
+                                />
+                                <span
+                                    class="amz_alert"
+                                    invisible="recon_variance == 0"
+                                >Review</span>
+                                <button
+                                    name="action_open_recon_variance"
+                                    type="object"
+                                    string="View variances →"
+                                    class="amz_link"
+                                    invisible="recon_variance == 0"
+                                />
+                            </div>
+                            <div class="amz_kpi">
+                                <span class="amz_kpi_label">No Invoice</span>
+                                <field
+                                    name="recon_no_invoice"
+                                    nolabel="1"
+                                    class="amz_num--warn"
+                                    invisible="recon_no_invoice == 0"
+                                />
+                                <field
+                                    name="recon_no_invoice"
+                                    nolabel="1"
+                                    invisible="recon_no_invoice != 0"
+                                />
+                            </div>
+                            <div class="amz_kpi">
+                                <span class="amz_kpi_label">Variance Amount</span>
+                                <field name="recon_variance_amount" nolabel="1" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Returns -->
+                    <div class="amz_section">
+                        <div class="amz_section_head">
+                            <span class="amz_tick" />Returns
+                        </div>
+                        <div class="amz_grid">
+                            <div class="amz_kpi">
+                                <span class="amz_kpi_label">Open Returns</span>
+                                <field name="returns_open" nolabel="1" />
+                                <button
+                                    name="action_open_returns_open"
+                                    type="object"
+                                    string="View open →"
+                                    class="amz_link"
+                                    invisible="returns_open == 0"
+                                />
+                            </div>
+                            <div class="amz_kpi">
+                                <span class="amz_kpi_label">Credited Returns</span>
+                                <field name="returns_credited" nolabel="1" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Operations Health -->
+                    <div class="amz_section">
+                        <div class="amz_section_head">
+                            <span class="amz_tick" />Operations Health
+                        </div>
+                        <div class="amz_grid">
+                            <div class="amz_kpi">
+                                <span class="amz_kpi_label">Failed Jobs</span>
+                                <field
+                                    name="failed_jobs"
+                                    nolabel="1"
+                                    class="amz_num--danger"
+                                    invisible="failed_jobs == 0"
+                                />
+                                <field
+                                    name="failed_jobs"
+                                    nolabel="1"
+                                    invisible="failed_jobs != 0"
+                                />
+                                <span
+                                    class="amz_alert"
+                                    invisible="failed_jobs == 0"
+                                >Investigate</span>
+                                <button
+                                    name="action_open_failed_jobs"
+                                    type="object"
+                                    string="View jobs →"
+                                    class="amz_link"
+                                    invisible="failed_jobs == 0"
+                                />
+                            </div>
+                            <div class="amz_synccard">
+                                <div class="amz_synccard_title">Sync Freshness</div>
+                                <div class="amz_syncrow">
+                                    <span class="amz_syncrow_label">Orders</span>
+                                    <field name="last_order_sync" nolabel="1" />
+                                </div>
+                                <div class="amz_syncrow">
+                                    <span class="amz_syncrow_label">Prices</span>
+                                    <field name="last_price_sync" nolabel="1" />
+                                </div>
+                                <div class="amz_syncrow">
+                                    <span class="amz_syncrow_label">FBA</span>
+                                    <field name="last_fba_sync" nolabel="1" />
+                                </div>
+                                <div class="amz_syncrow">
+                                    <span class="amz_syncrow_label">Settlements</span>
+                                    <field name="last_settlement_sync" nolabel="1" />
+                                </div>
+                                <div class="amz_syncrow">
+                                    <span class="amz_syncrow_label">Returns</span>
+                                    <field name="last_return_sync" nolabel="1" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </sheet>
             </form>
         </field>
