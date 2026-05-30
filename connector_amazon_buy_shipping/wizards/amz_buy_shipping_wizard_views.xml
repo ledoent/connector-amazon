@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_amz_buy_shipping_wizard_form" model="ir.ui.view">
+        <field name="name">amz.buy.shipping.wizard.form</field>
+        <field name="model">amz.buy.shipping.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Buy Amazon Shipping">
+                <field name="picking_id" invisible="1" />
+                <field name="backend_id" invisible="1" />
+                <field name="currency_id" invisible="1" />
+                <field name="rates_fetched" invisible="1" />
+                <group>
+                    <group string="Package">
+                        <label for="weight" />
+                        <div class="o_row">
+                            <field name="weight" class="oe_inline" />
+                            <field name="weight_unit" class="oe_inline" readonly="1" />
+                        </div>
+                        <label for="package_length" string="Dimensions (L×W×H)" />
+                        <div class="o_row">
+                            <field name="package_length" class="oe_inline" />
+                            <field name="package_width" class="oe_inline" />
+                            <field name="package_height" class="oe_inline" />
+                            <field
+                                name="dimension_unit"
+                                class="oe_inline"
+                                readonly="1"
+                            />
+                        </div>
+                    </group>
+                </group>
+                <button
+                    name="action_get_rates"
+                    type="object"
+                    string="Get Rates"
+                    class="btn-primary"
+                />
+                <separator string="Shipping Options" invisible="not rates_fetched" />
+                <field name="rate_line_ids" invisible="not rates_fetched">
+                    <list create="false" edit="false">
+                        <field name="carrier_name" />
+                        <field name="service_name" />
+                        <field name="delivery_date" />
+                        <field name="cost" />
+                        <button
+                            name="action_buy"
+                            type="object"
+                            string="Buy Label"
+                            class="btn-primary"
+                            icon="fa-shopping-cart"
+                        />
+                    </list>
+                </field>
+                <p
+                    class="text-muted"
+                    invisible="not rates_fetched or rate_line_ids"
+                >No eligible Amazon shipping services were returned for this package.</p>
+                <footer>
+                    <button string="Close" class="btn-secondary" special="cancel" />
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

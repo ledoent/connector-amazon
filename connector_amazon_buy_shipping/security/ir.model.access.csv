@@ -1,0 +1,5 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_amz_shipment_user,amz.shipment user,model_amz_shipment,connector_amazon.group_amz_user,1,1,1,0
+access_amz_shipment_manager,amz.shipment manager,model_amz_shipment,connector_amazon.group_amz_manager,1,1,1,1
+access_amz_buy_shipping_wizard,amz.buy.shipping.wizard user,model_amz_buy_shipping_wizard,connector_amazon.group_amz_user,1,1,1,1
+access_amz_buy_shipping_rate,amz.buy.shipping.rate user,model_amz_buy_shipping_rate,connector_amazon.group_amz_user,1,1,1,1
