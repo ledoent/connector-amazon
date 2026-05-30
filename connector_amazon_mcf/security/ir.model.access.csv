@@ -1,0 +1,4 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_amz_fulfillment_order_user,amz.fulfillment.order user,model_amz_fulfillment_order,connector_amazon.group_amz_user,1,1,1,0
+access_amz_fulfillment_order_manager,amz.fulfillment.order manager,model_amz_fulfillment_order,connector_amazon.group_amz_manager,1,1,1,1
+access_amz_fulfillment_order_line_user,amz.fulfillment.order.line user,model_amz_fulfillment_order_line,connector_amazon.group_amz_user,1,1,1,1
