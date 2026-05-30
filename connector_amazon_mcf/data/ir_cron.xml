@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="ir_cron_amz_mcf_sync" model="ir.cron">
+        <field name="name">Amazon: Sync MCF Orders</field>
+        <field name="model_id" ref="model_amz_fulfillment_order" />
+        <field name="state">code</field>
+        <field
+            name="code"
+        >model.search([("state", "in", ["submitted", "processing"])])._cron_sync_status()</field>
+        <field name="interval_number">2</field>
+        <field name="interval_type">hours</field>
+        <field name="active" eval="False" />
+    </record>
+</odoo>

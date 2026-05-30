@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_amz_backend_form_mcf" model="ir.ui.view">
+        <field name="name">amz.backend.form.mcf</field>
+        <field name="model">amz.backend</field>
+        <field name="inherit_id" ref="connector_amazon.view_amz_backend_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//chatter" position="before">
+                <group string="Multi-Channel Fulfillment">
+                    <field name="mcf_default_speed" />
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>
