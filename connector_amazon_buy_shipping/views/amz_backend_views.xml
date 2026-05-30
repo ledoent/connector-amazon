@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_amz_backend_form_buy_shipping" model="ir.ui.view">
+        <field name="name">amz.backend.form.buy.shipping</field>
+        <field name="model">amz.backend</field>
+        <field name="inherit_id" ref="connector_amazon.view_amz_backend_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//chatter" position="before">
+                <group string="Buy Shipping Defaults">
+                    <group>
+                        <label for="default_package_weight" />
+                        <div class="o_row">
+                            <field name="default_package_weight" class="oe_inline" />
+                            <field name="weight_unit" class="oe_inline" />
+                        </div>
+                        <field name="label_format" />
+                    </group>
+                    <group>
+                        <label for="default_package_length" string="Default L×W×H" />
+                        <div class="o_row">
+                            <field name="default_package_length" class="oe_inline" />
+                            <field name="default_package_width" class="oe_inline" />
+                            <field name="default_package_height" class="oe_inline" />
+                            <field name="dimension_unit" class="oe_inline" />
+                        </div>
+                    </group>
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>

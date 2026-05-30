@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_picking_form_amz_buy_shipping" model="ir.ui.view">
+        <field name="name">stock.picking.form.amz.buy.shipping</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_form" />
+        <field name="arch" type="xml">
+            <button name="action_assign" position="before">
+                <field name="is_amazon_order" invisible="1" />
+                <field name="amazon_label_purchased" invisible="1" />
+                <button
+                    name="action_amz_buy_shipping"
+                    type="object"
+                    string="Buy Amazon Shipping"
+                    class="btn-secondary"
+                    invisible="not is_amazon_order or amazon_label_purchased or state in ('done', 'cancel', 'draft')"
+                />
+            </button>
+        </field>
+    </record>
+</odoo>
