@@ -67,6 +67,124 @@ permanently-malformed messages.
 .. contents::
    :local:
 
+Configuration
+=============
+
+1. Provision the SQS queue (AWS side)
+-------------------------------------
+
+This module consumes Amazon's ``ANY_OFFER_CHANGED`` feed via an SQS
+queue you own. Odoo never creates the queue — provision it before
+configuring the backend.
+
+1. In the AWS account, create a standard **SQS queue** in the region you
+   will use (e.g. ``us-east-1``).
+2. Attach the **SP-API send policy** to the queue so Amazon's
+   notification service can deliver to it. Amazon publishes from a fixed
+   principal; grant ``sqs:SendMessage`` to the SP-API service on this
+   queue's ARN (see the SP-API "Notifications" docs for the exact
+   principal/condition).
+3. Create a **dead-letter queue** and a redrive policy with a
+   ``maxReceiveCount`` on the source queue. Messages that fail to parse
+   are intentionally left on the queue (not deleted) so they retry;
+   without a DLQ a permanently-malformed message would be redelivered
+   forever.
+4. Create an **IAM user** (or role) with ``sqs:GetQueueAttributes``,
+   ``sqs:ReceiveMessage`` and ``sqs:DeleteMessage`` on this queue, and
+   generate an access key / secret for it.
+
+2. Backend AWS credentials (Odoo side)
+--------------------------------------
+
+In **Amazon → Pricing → (your backend) → Real-Time Repricing (SQS)**:
+
+- **AWS Access Key ID** / **AWS Secret Access Key** — the IAM user's key
+  pair (stored masked in the form).
+- **AWS Region** — the queue's region (default ``us-east-1``).
+- **SQS Queue URL** — the full queue URL from the SQS console. The queue
+  ARN is derived from this automatically during **Setup Notifications**.
+- **Real-Time Repricing** — master on/off switch for this backend.
+
+``boto3`` must be installed on the Odoo server (``pip install boto3``);
+the Setup and poll actions raise a clear error if it is missing.
+
+3. Enable the polling cron
+--------------------------
+
+The scheduled action **Amazon: Poll Offer Notifications (SQS)**
+(``ir_cron_amz_poll_offer_notifications``) ships **disabled** because it
+makes live AWS/SP-API calls. To enable:
+
+1. **Settings → Technical → Automation → Scheduled Actions**.
+2. Open **Amazon: Poll Offer Notifications (SQS)**, set it active
+   (default every 5 minutes).
+3. It only drains backends where **Real-Time Repricing** is on and an
+   SQS Queue URL is set.
+
+Repricing on each notification additionally requires **Auto Price Push**
+(Pricing module) and **Competitive** pricing mode; otherwise
+notifications only refresh buy-box data and snapshots without pushing a
+new price.
+
+4. Snapshot retention
+---------------------
+
+``amz.offer.snapshot`` is append-only and high-volume on popular ASINs.
+Add an autovacuum / cleanup scheduled action that deletes rows older
+than your retention window (filter on ``date``) so the table does not
+grow unbounded.
+
+Usage
+=====
+
+This guide assumes AWS/SQS and the backend are configured (see
+CONFIGURE).
+
+Activate real-time repricing
+----------------------------
+
+1. Open **Amazon → Pricing → (your backend)** and go to the **Real-Time
+   Repricing (SQS)** section.
+2. Tick **Real-Time Repricing** and confirm the four AWS fields are
+   filled (Access Key ID, Secret Access Key, Region, SQS Queue URL).
+3. Click **Setup Notifications** in the form header (the button only
+   appears once an Access Key ID and an SQS Queue URL are present).
+   This:
+
+   - reads the queue ARN from your SQS URL,
+   - registers an SP-API destination named ``odoo-repricing-<backend>``,
+   - subscribes the ``ANY_OFFER_CHANGED`` notification to it. A
+     "Notifications Active" message confirms success; first messages
+     arrive within ~5 minutes.
+
+How repricing runs
+------------------
+
+1. The scheduled action **Amazon: Poll Offer Notifications (SQS)**
+   drains the queue every 5 minutes (see CONFIGURE to enable it).
+2. For each ``ANY_OFFER_CHANGED`` message, the matching listing's
+   **buy-box price**, **buy-box winner** and **pull timestamp** are
+   updated, and one **Competitor Offer** snapshot per offer is recorded.
+3. If the backend has **Auto Price Push** enabled (from the Pricing
+   module) *and* is in **Competitive** pricing mode, the listing is
+   repriced: a new target is computed from the competitive rule and, if
+   it differs from the current price, PATCHed to Amazon. Each such
+   change is logged to Price History with the **Offer Notification**
+   trigger.
+
+Buy-box / competitor analytics
+------------------------------
+
+1. Open **Amazon → Pricing → Competitor Offers**
+   (``amz.offer.snapshot``).
+2. Each row is one offer seen on an ASIN: seller, price, "Our Offer",
+   "Buy Box Winner". Your offers are bold; buy-box-winning rows are
+   highlighted green.
+3. Filter by **Our Offers** / **Buy Box Winner**, or group by
+   **Listing** / **Seller**, to compute buy-box win-rate over time.
+4. This table is append-only and grows fast on busy ASINs — schedule a
+   cleanup (see CONFIGURE).
+
 Bug Tracker
 ===========
 

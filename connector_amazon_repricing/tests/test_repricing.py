@@ -1,8 +1,11 @@
 import json
 from unittest.mock import MagicMock, patch
 
+from odoo.exceptions import UserError
 from odoo.tests.common import TransactionCase
 from odoo.tools import mute_logger
+
+from odoo.addons.connector_amazon_repricing.models.amz_backend import _SQS_MAX_MESSAGES
 
 AMZ_SKU = "REPRICE_TEST_SKU"
 AMZ_ASIN = "B00REPRICE1"
@@ -254,6 +257,38 @@ class TestRepricing(TransactionCase):
 
         mock_sqs.delete_message.assert_not_called()
 
+    def test_drain_sqs_multi_batch_loop(self):
+        """receive_message is called until it returns no messages (multi-page)."""
+        page1 = {
+            "Messages": [
+                {
+                    "MessageId": f"m{i}",
+                    "ReceiptHandle": f"rh{i}",
+                    "Body": json.dumps(_make_notification(AMZ_ASIN, 10.0 + i)),
+                }
+                for i in range(_SQS_MAX_MESSAGES)
+            ]
+        }
+        page2 = {
+            "Messages": [
+                {
+                    "MessageId": "m-last",
+                    "ReceiptHandle": "rh-last",
+                    "Body": json.dumps(_make_notification(AMZ_ASIN, 99.0)),
+                }
+            ]
+        }
+        mock_sqs = MagicMock()
+        mock_sqs.receive_message.side_effect = [page1, page2, {"Messages": []}]
+
+        with patch.object(type(self.backend), "_get_sqs_client", return_value=mock_sqs):
+            self.backend._drain_sqs_queue()
+
+        # Three receive calls (two full-ish pages + the terminating empty page),
+        # one delete per processed message.
+        self.assertEqual(mock_sqs.receive_message.call_count, 3)
+        self.assertEqual(mock_sqs.delete_message.call_count, _SQS_MAX_MESSAGES + 1)
+
     # ── poll_offer_notifications (cron) ───────────────────────────────────────
 
     def test_poll_skips_backend_without_sqs_url(self):
@@ -268,3 +303,146 @@ class TestRepricing(TransactionCase):
             self.backend.poll_offer_notifications()
 
         self.assertEqual(called, [])
+
+    def test_poll_enqueues_drain_for_enabled_backend(self):
+        """An enabled backend with a queue URL enqueues a drain job."""
+        called = []
+
+        with patch.object(
+            type(self.backend),
+            "with_delay",
+            side_effect=lambda **kw: called.append(kw) or MagicMock(),
+        ):
+            self.backend.poll_offer_notifications()
+
+        self.assertEqual(len(called), 1)
+
+    # ── action_setup_notifications ────────────────────────────────────────────
+
+    def test_setup_notifications_requires_aws_credentials(self):
+        self.backend.aws_access_key_id = False
+        with self.assertRaises(UserError):
+            self.backend.action_setup_notifications()
+
+    def test_setup_notifications_requires_queue_url(self):
+        self.backend.sqs_queue_url = False
+        with self.assertRaises(UserError):
+            self.backend.action_setup_notifications()
+
+    def test_setup_notifications_happy_path(self):
+        """ARN is derived from SQS then a destination + subscription are created."""
+        mock_sqs = MagicMock()
+        mock_sqs.get_queue_attributes.return_value = {
+            "Attributes": {"QueueArn": "arn:aws:sqs:us-east-1:123:test-queue"}
+        }
+        mock_api = MagicMock()
+        mock_api.create_destination.return_value = MagicMock(
+            payload={"destinationId": "dest-123"}
+        )
+
+        with (
+            patch.object(type(self.backend), "_get_sqs_client", return_value=mock_sqs),
+            patch.object(type(self.backend), "_get_api", return_value=mock_api),
+        ):
+            self.backend.action_setup_notifications()
+
+        dest_body = mock_api.create_destination.call_args.kwargs["body"]
+        self.assertEqual(
+            dest_body["resourceSpecification"]["sqs"]["arn"],
+            "arn:aws:sqs:us-east-1:123:test-queue",
+        )
+        sub_kwargs = mock_api.create_subscription.call_args.kwargs
+        self.assertEqual(sub_kwargs["notificationType"], "ANY_OFFER_CHANGED")
+        self.assertEqual(sub_kwargs["body"]["destinationId"], "dest-123")
+
+    # ── _snapshot_offers fallbacks ────────────────────────────────────────────
+
+    def test_snapshot_offers_handles_missing_fields(self):
+        """An offer missing SellerId/ListingPrice yields a snapshot with safe
+        defaults (not own offer, price 0)."""
+        self.backend._snapshot_offers(self.listing, [{"IsBuyBoxWinner": False}])
+        snap = self.env["amz.offer.snapshot"].search(
+            [("listing_id", "=", self.listing.id)]
+        )
+        self.assertEqual(len(snap), 1)
+        self.assertFalse(snap.is_own_offer)
+        self.assertAlmostEqual(snap.price, 0.0, places=2)
+
+    def test_snapshot_offers_empty_list_creates_nothing(self):
+        self.backend._snapshot_offers(self.listing, [])
+        snap = self.env["amz.offer.snapshot"].search(
+            [("listing_id", "=", self.listing.id)]
+        )
+        self.assertFalse(snap)
+
+    # ── _reprice_listing / _push_single_listing ───────────────────────────────
+
+    def test_reprice_listing_unchanged_price_does_not_push(self):
+        """When the computed target equals the current price, no push is queued."""
+        self.listing.buy_box_price = 50.0
+        self.listing.current_list_price = 50.0
+        self.backend.competitive_rule = "match_buy_box"
+        self.backend.competitive_floor_margin_pct = 0.0
+        queued = []
+        with patch.object(
+            type(self.backend),
+            "with_delay",
+            side_effect=lambda **kw: queued.append(kw) or MagicMock(),
+        ):
+            self.backend._reprice_listing(self.listing)
+        self.assertEqual(queued, [])
+        self.assertAlmostEqual(self.listing.computed_target_price, 50.0, places=2)
+
+    def test_reprice_listing_changed_price_queues_push(self):
+        self.listing.buy_box_price = 60.0
+        self.listing.current_list_price = 50.0
+        self.backend.competitive_rule = "match_buy_box"
+        self.backend.competitive_floor_margin_pct = 0.0
+        queued = []
+        with patch.object(
+            type(self.backend),
+            "with_delay",
+            side_effect=lambda **kw: queued.append(kw) or MagicMock(),
+        ):
+            self.backend._reprice_listing(self.listing)
+        self.assertEqual(len(queued), 1)
+
+    def test_push_single_listing_success_logs_notification(self):
+        """A successful push writes the price and a 'notification' history row."""
+        self.listing.current_list_price = 20.0
+        mock_api = MagicMock()
+        with patch.object(type(self.backend), "_get_api", return_value=mock_api):
+            self.backend._push_single_listing(self.listing.id, 24.99)
+
+        self.assertTrue(mock_api.patch_listings_item.called)
+        self.listing.invalidate_recordset()
+        self.assertAlmostEqual(self.listing.current_list_price, 24.99, places=2)
+        self.assertTrue(self.listing.last_price_push_date)
+        hist = self.env["amz.price.history"].search(
+            [("listing_id", "=", self.listing.id)]
+        )
+        self.assertEqual(len(hist), 1)
+        self.assertEqual(hist.trigger, "notification")
+        self.assertAlmostEqual(hist.new_price, 24.99, places=2)
+
+    def test_push_single_listing_skips_deleted_listing(self):
+        """A listing removed before the job runs is a no-op (exists() guard)."""
+        listing_id = self.listing.id
+        self.listing.unlink()
+        mock_api = MagicMock()
+        with patch.object(type(self.backend), "_get_api", return_value=mock_api):
+            self.backend._push_single_listing(listing_id, 30.0)
+        mock_api.patch_listings_item.assert_not_called()
+
+    def test_push_single_listing_swallows_api_error(self):
+        """An API error is caught and logged, not raised, leaving price unchanged."""
+        self.listing.current_list_price = 20.0
+        mock_api = MagicMock()
+        mock_api.patch_listings_item.side_effect = Exception("API down")
+        with (
+            patch.object(type(self.backend), "_get_api", return_value=mock_api),
+            mute_logger(LOGGER),
+        ):
+            self.backend._push_single_listing(self.listing.id, 24.99)
+        self.listing.invalidate_recordset()
+        self.assertAlmostEqual(self.listing.current_list_price, 20.0, places=2)
