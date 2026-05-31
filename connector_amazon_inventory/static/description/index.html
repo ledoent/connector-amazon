@@ -380,10 +380,12 @@ stock quantities to Amazon via the Listings Items API.</p>
 <p>On each sync cycle (default every 15 minutes):</p>
 <ol class="arabic simple">
 <li>For each active <tt class="docutils literal">amz.listing</tt> with <tt class="docutils literal">inventory_sync_enabled</tt>,
-compute the available quantity from <tt class="docutils literal">stock.quant</tt> records at the
-configured locations.</li>
-<li>Apply backend-level rules: multiply by <tt class="docutils literal">inventory_expose_ratio</tt> and
-subtract <tt class="docutils literal">inventory_min_reserve</tt>. Result is clamped to 0.</li>
+compute the free quantity from <tt class="docutils literal">stock.quant</tt> records at the
+configured locations, where free already nets out each quant’s
+<tt class="docutils literal">reserved_quantity</tt>.</li>
+<li>Apply backend-level rules: take the floor of free ×
+<tt class="docutils literal">inventory_expose_ratio</tt>, then subtract <tt class="docutils literal">inventory_min_reserve</tt>.
+Result is clamped to 0.</li>
 <li>If the computed quantity differs from the last pushed value, send a
 <tt class="docutils literal">PATCH <span class="pre">/listings/.../fulfillment_availability</span></tt> request to Amazon.</li>
 <li>Record <tt class="docutils literal">last_pushed_qty</tt> and <tt class="docutils literal">last_inventory_push_date</tt> on the
@@ -394,17 +396,116 @@ individual SKUs (e.g. pre-orders or bundles handled outside Odoo).</p>
 <p><strong>Table of contents</strong></p>
 <div class="contents local topic" id="contents">
 <ul class="simple">
-<li><a class="reference internal" href="#bug-tracker" id="toc-entry-1">Bug Tracker</a></li>
-<li><a class="reference internal" href="#credits" id="toc-entry-2">Credits</a><ul>
-<li><a class="reference internal" href="#authors" id="toc-entry-3">Authors</a></li>
-<li><a class="reference internal" href="#contributors" id="toc-entry-4">Contributors</a></li>
-<li><a class="reference internal" href="#maintainers" id="toc-entry-5">Maintainers</a></li>
+<li><a class="reference internal" href="#configuration" id="toc-entry-1">Configuration</a><ul>
+<li><a class="reference internal" href="#backend-inventory-settings" id="toc-entry-2">Backend inventory settings</a></li>
+<li><a class="reference internal" href="#per-listing-override" id="toc-entry-3">Per-listing override</a></li>
+<li><a class="reference internal" href="#scheduled-action" id="toc-entry-4">Scheduled action</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#usage" id="toc-entry-5">Usage</a><ul>
+<li><a class="reference internal" href="#enable-inventory-sync-on-a-listing" id="toc-entry-6">Enable inventory sync on a listing</a></li>
+<li><a class="reference internal" href="#push-stock-to-amazon" id="toc-entry-7">Push stock to Amazon</a></li>
+<li><a class="reference internal" href="#automatic-inventory-sync" id="toc-entry-8">Automatic inventory sync</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#bug-tracker" id="toc-entry-9">Bug Tracker</a></li>
+<li><a class="reference internal" href="#credits" id="toc-entry-10">Credits</a><ul>
+<li><a class="reference internal" href="#authors" id="toc-entry-11">Authors</a></li>
+<li><a class="reference internal" href="#contributors" id="toc-entry-12">Contributors</a></li>
+<li><a class="reference internal" href="#maintainers" id="toc-entry-13">Maintainers</a></li>
 </ul>
 </li>
 </ul>
 </div>
+<div class="section" id="configuration">
+<h2><a class="toc-backref" href="#toc-entry-1">Configuration</a></h2>
+<div class="section" id="backend-inventory-settings">
+<h3><a class="toc-backref" href="#toc-entry-2">Backend inventory settings</a></h3>
+<p>In <strong>Amazon → Pricing → (your backend) → Inventory Sync</strong>:</p>
+<ul class="simple">
+<li><strong>Inventory Sync</strong> — master switch for this backend (off by default).
+Enables the <strong>Push Inventory</strong> button and includes the backend in the
+scheduled push.</li>
+<li><strong>Fulfillment Locations</strong> — the internal stock locations counted
+toward the Amazon FBM quantity. Leave empty to use the warehouse’s
+default stock location (<tt class="docutils literal">warehouse_id.lot_stock_id</tt>).</li>
+<li><strong>Expose Ratio</strong> — fraction of free stock to expose to Amazon,
+<tt class="docutils literal">0.0</tt>–<tt class="docutils literal">1.0</tt> (validated). E.g. <tt class="docutils literal">0.5</tt> exposes half. Default
+<tt class="docutils literal">1.0</tt>.</li>
+<li><strong>Min Reserve</strong> — units always held back regardless of ratio
+(validated ≥ 0). Default <tt class="docutils literal">0</tt>.</li>
+</ul>
+<p>The pushed quantity per SKU is:</p>
+<pre class="literal-block">
+free_qty = Σ over the configured locations of max(0, on_hand − reserved)
+pushed   = max(0, floor(free_qty × Expose Ratio) − Min Reserve)
+</pre>
+<p><tt class="docutils literal">free_qty</tt> already nets out reserved stock; the result is floored to a
+whole unit, then Min Reserve is subtracted, then clamped to 0. <strong>Amazon
+Seller ID</strong> (Pricing section) is required for any push.</p>
+</div>
+<div class="section" id="per-listing-override">
+<h3><a class="toc-backref" href="#toc-entry-3">Per-listing override</a></h3>
+<p>Each listing has its own <strong>Sync Inventory</strong> flag (on by default).
+Unchecking it excludes that SKU from both the manual button and the cron
+— useful for pre-orders, bundles, or SKUs fulfilled outside Odoo.</p>
+</div>
+<div class="section" id="scheduled-action">
+<h3><a class="toc-backref" href="#toc-entry-4">Scheduled action</a></h3>
+<p>The cron <strong>Amazon: Push Inventory</strong> (<tt class="docutils literal">ir_cron_amz_push_inventory</tt>)
+ships <strong>disabled</strong> (makes live SP-API calls). Enable it under <strong>Settings
+→ Technical → Automation → Scheduled Actions</strong> (default every 15
+minutes). It acts only on backends with <strong>Inventory Sync</strong> on.</p>
+</div>
+</div>
+<div class="section" id="usage">
+<h2><a class="toc-backref" href="#toc-entry-5">Usage</a></h2>
+<p>This guide assumes the backend and listings are already set up via
+<tt class="docutils literal">connector_amazon_pricing</tt> (see that module’s USAGE), and that this
+module’s backend settings are configured (see CONFIGURE).</p>
+<div class="section" id="enable-inventory-sync-on-a-listing">
+<h3><a class="toc-backref" href="#toc-entry-6">Enable inventory sync on a listing</a></h3>
+<ol class="arabic simple">
+<li>Open <strong>Amazon → Pricing → Listings</strong> and pick a listing.</li>
+<li>On the form, under <strong>Inventory</strong>, tick <strong>Sync Inventory</strong> (on by
+default for new listings). Untick it for SKUs whose Amazon stock you
+manage elsewhere (pre-orders, bundles, FBA-only items).</li>
+<li>The same flag, plus <strong>Last Pushed Qty</strong> and <strong>Last Inventory Push</strong>
+date, also appear as optional columns on the backend’s Listings tab.</li>
+</ol>
+</div>
+<div class="section" id="push-stock-to-amazon">
+<h3><a class="toc-backref" href="#toc-entry-7">Push stock to Amazon</a></h3>
+<ol class="arabic simple">
+<li>On the backend form, confirm <strong>Inventory Sync</strong> is enabled and the
+<strong>Amazon Seller ID</strong> (Pricing section) is set — the push errors
+without it.</li>
+<li>Click <strong>Push Inventory</strong> in the form header (shown only when
+<strong>Inventory Sync</strong> is on). This queues a job that, for every active
+listing with <strong>Sync Inventory</strong> on:<ul>
+<li>computes the FBM quantity (see CONFIGURE for the formula),</li>
+<li>skips listings whose quantity is unchanged since the last push,</li>
+<li>PATCHes <tt class="docutils literal">fulfillment_availability</tt> to Amazon for the rest,</li>
+<li>records <strong>Last Pushed Qty</strong> and <strong>Last Inventory Push</strong> on the
+listing.</li>
+</ul>
+</li>
+<li>A stock-out is pushed too: when a previously-nonzero SKU drops to 0,
+a <tt class="docutils literal">quantity: 0</tt> update is sent so Amazon stops offering it.</li>
+</ol>
+</div>
+<div class="section" id="automatic-inventory-sync">
+<h3><a class="toc-backref" href="#toc-entry-8">Automatic inventory sync</a></h3>
+<ol class="arabic simple">
+<li>Enable <strong>Inventory Sync</strong> on the backend.</li>
+<li>Enable the <strong>Amazon: Push Inventory</strong> scheduled action (ships
+disabled — see CONFIGURE). It runs every 15 minutes across all
+backends with Inventory Sync on.</li>
+</ol>
+</div>
+</div>
 <div class="section" id="bug-tracker">
-<h2><a class="toc-backref" href="#toc-entry-1">Bug Tracker</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-9">Bug Tracker</a></h2>
 <p>Bugs are tracked on <a class="reference external" href="https://github.com/OCA/connector-amazon/issues">GitHub Issues</a>.
 In case of trouble, please check there if your issue has already been reported.
 If you spotted it first, help us to smash it by providing a detailed and welcomed
@@ -412,21 +513,21 @@ If you spotted it first, help us to smash it by providing a detailed and welcome
 <p>Do not contact contributors directly about support or help with technical issues.</p>
 </div>
 <div class="section" id="credits">
-<h2><a class="toc-backref" href="#toc-entry-2">Credits</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-10">Credits</a></h2>
 <div class="section" id="authors">
-<h3><a class="toc-backref" href="#toc-entry-3">Authors</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-11">Authors</a></h3>
 <ul class="simple">
 <li>Ledo</li>
 </ul>
 </div>
 <div class="section" id="contributors">
-<h3><a class="toc-backref" href="#toc-entry-4">Contributors</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-12">Contributors</a></h3>
 <ul class="simple">
 <li>Don Kendall &lt;<a class="reference external" href="mailto:dkendall&#64;ledoweb.com">dkendall&#64;ledoweb.com</a>&gt;</li>
 </ul>
 </div>
 <div class="section" id="maintainers">
-<h3><a class="toc-backref" href="#toc-entry-5">Maintainers</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-13">Maintainers</a></h3>
 <p>This module is maintained by the OCA.</p>
 <a class="reference external image-reference" href="https://odoo-community.org">
 <img alt="Odoo Community Association" src="https://odoo-community.org/logo.png" />
