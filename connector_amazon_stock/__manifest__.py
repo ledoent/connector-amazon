@@ -1,6 +1,6 @@
 {
     "name": "Amazon SP-API Connector: Tracking",
-    "version": "19.0.1.0.0",
+    "version": "19.0.1.1.0",
     "category": "Inventory/Inventory",
     "summary": "Push carrier tracking numbers to Amazon via ConfirmShipment",
     "author": "Ledo, Odoo Community Association (OCA)",
@@ -10,9 +10,7 @@
         "connector_amazon_sale",
         "stock_delivery",
     ],
-    "data": [
-        "views/stock_picking_views.xml",
-    ],
+    "data": [],
     "maintainers": ["dnplkndll"],
     "development_status": "Beta",
     "installable": True,

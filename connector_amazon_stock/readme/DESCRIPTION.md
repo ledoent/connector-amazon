@@ -11,5 +11,6 @@ When a delivery order (`stock.picking`) is validated:
 3.  Odoo carrier names are mapped to Amazon carrier codes (UPS, USPS,
     FedEx, DHL, etc.); unknown carriers fall back to `"Other"`.
 
-The job retries automatically on transient SP-API errors (429
-throttling, 503 service unavailable).
+If the SP-API call fails, the error is logged and the `queue_job` job is
+left in a failed state under **Settings > Technical > Queue Jobs**, where it
+can be inspected and retried.
