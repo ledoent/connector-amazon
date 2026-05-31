@@ -58,6 +58,132 @@ Phase 1A features:
 .. contents::
    :local:
 
+Configuration
+=============
+
+Backend pricing settings
+------------------------
+
+Open **Amazon → Pricing → (your backend)** and fill the **Pricing**
+section:
+
+- **Amazon Seller ID** — Merchant Token from Seller Central → Account
+  Info → Merchant Token. Required for **Import Listings** and **Push
+  Prices**.
+- **Pricing Mode**:
+
+  - *Odoo Pricelist* — pushes the price from the backend's pricelist
+    (``pricelist_id``, configured by ``connector_amazon_sale``).
+  - *Amazon Competitive Floor* — prices against the live buy box (see
+    rules below).
+  - *Manual / No Sync* — never computes or pushes a price (Push Prices
+    button hidden).
+
+- **Auto Price Push** — when on, this backend is included in the
+  scheduled sync.
+
+Competitive mode rules (shown only in Competitive mode)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- **Competitive Rule**:
+
+  - *Match Buy Box* — target = current buy-box price.
+  - *Undercut Buy Box by %* — target = buy box × (1 − Undercut %).
+  - *Floor: Cost + Margin %* — competes at the buy box but never below
+    the floor.
+
+- **Undercut %** — only shown for the undercut rule; e.g. ``1.0`` = 1%
+  under buy box.
+- **Floor Margin %** — applied to *every* competitive rule as a hard
+  floor: target is never below
+  ``standard_price × (1 + Floor Margin % / 100)``. If the buy box is
+  below the floor, the listing is priced at the floor instead of
+  matching.
+
+A computed price needs a buy-box price on the listing — run **Sync
+Competitive Prices** (or enable the cron) before expecting a push in
+competitive mode.
+
+Scheduled action
+----------------
+
+The cron **Amazon: Sync Prices** (``ir_cron_amz_sync_prices``) ships
+**disabled** (``active=False``) because it makes live SP-API calls. To
+enable:
+
+1. Go to **Settings → Technical → Automation → Scheduled Actions**.
+2. Open **Amazon: Sync Prices**, set it active, adjust the interval if
+   needed (default every 30 minutes).
+3. It only acts on backends where **Auto Price Push** is enabled.
+
+Permissions
+-----------
+
+- **Amazon Manager** (``group_amz_manager``) — full read/write on
+  listings and price history.
+- **Amazon User** (``group_amz_user``) — read-only.
+
+Usage
+=====
+
+This guide assumes the backend is already configured (see CONFIGURE).
+
+Import your Amazon listings
+---------------------------
+
+1. Go to **Amazon → Pricing → (your backend)** and open the backend
+   form.
+2. Make sure **Amazon Seller ID** is set under the **Pricing** section
+   (the Merchant Token from Seller Central → Account Info → Merchant
+   Token). Imports fail with an error if it is empty.
+3. Click **Import Listings** in the form header. This calls the Listings
+   Items API and creates one **Amazon Listing** (``amz.listing``) per
+   SKU that matches an Odoo product by Internal Reference
+   (``default_code``). SKUs with no matching product are skipped (logged
+   as a warning). Pagination is followed automatically, so all pages
+   import in one click.
+4. A "Listings Imported" notification reports how many records were
+   created or updated. Re-running is safe — existing listings are
+   updated in place (ASIN / product), never duplicated.
+
+Listings auto-create on order import too: when ``connector_amazon_sale``
+imports an order, any new SKU with a matching Odoo product gets an
+``amz.listing`` automatically.
+
+Review listings
+---------------
+
+1. Open **Amazon → Pricing → Listings** for the full list, or use the
+   **Listings** tab on the backend form.
+2. Each listing shows SKU, ASIN, the linked product, current list price,
+   buy-box price, computed target price and the last push timestamp.
+
+Push prices to Amazon
+---------------------
+
+1. Choose a **Pricing Mode** on the backend (see CONFIGURE for what each
+   mode does).
+2. In **Competitive** mode, click **Sync Competitive Prices** first to
+   pull the current buy-box prices from Amazon into the listings (this
+   button is only shown in competitive mode).
+3. Click **Push Prices** in the form header (shown in every mode except
+   *Manual*). This queues a background job that, for each active
+   listing, computes the target price for the current mode and PATCHes
+   it to Amazon via the Listings Items API.
+4. Every price *change* is recorded in **Amazon → Pricing → Price
+   History** (``amz.price.history``): old price, new price, the pricing
+   rule used, and the trigger (Manual / Scheduled / Offer Notification).
+   Unchanged prices are not logged, so the history stays signal-only.
+
+Automatic price sync
+--------------------
+
+1. Enable **Auto Price Push** on the backend.
+2. Enable the **Amazon: Sync Prices** scheduled action (ships disabled —
+   see CONFIGURE). It runs every 30 minutes and, for each backend with
+   **Auto Price Push** on, pulls competitive prices (competitive mode
+   only) then pushes.
+
 Bug Tracker
 ===========
 

@@ -398,17 +398,162 @@ the Listings Items PATCH API.</li>
 <p><strong>Table of contents</strong></p>
 <div class="contents local topic" id="contents">
 <ul class="simple">
-<li><a class="reference internal" href="#bug-tracker" id="toc-entry-1">Bug Tracker</a></li>
-<li><a class="reference internal" href="#credits" id="toc-entry-2">Credits</a><ul>
-<li><a class="reference internal" href="#authors" id="toc-entry-3">Authors</a></li>
-<li><a class="reference internal" href="#contributors" id="toc-entry-4">Contributors</a></li>
-<li><a class="reference internal" href="#maintainers" id="toc-entry-5">Maintainers</a></li>
+<li><a class="reference internal" href="#configuration" id="toc-entry-1">Configuration</a><ul>
+<li><a class="reference internal" href="#backend-pricing-settings" id="toc-entry-2">Backend pricing settings</a><ul>
+<li><a class="reference internal" href="#competitive-mode-rules-shown-only-in-competitive-mode" id="toc-entry-3">Competitive mode rules (shown only in Competitive mode)</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#scheduled-action" id="toc-entry-4">Scheduled action</a></li>
+<li><a class="reference internal" href="#permissions" id="toc-entry-5">Permissions</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#usage" id="toc-entry-6">Usage</a><ul>
+<li><a class="reference internal" href="#import-your-amazon-listings" id="toc-entry-7">Import your Amazon listings</a></li>
+<li><a class="reference internal" href="#review-listings" id="toc-entry-8">Review listings</a></li>
+<li><a class="reference internal" href="#push-prices-to-amazon" id="toc-entry-9">Push prices to Amazon</a></li>
+<li><a class="reference internal" href="#automatic-price-sync" id="toc-entry-10">Automatic price sync</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#bug-tracker" id="toc-entry-11">Bug Tracker</a></li>
+<li><a class="reference internal" href="#credits" id="toc-entry-12">Credits</a><ul>
+<li><a class="reference internal" href="#authors" id="toc-entry-13">Authors</a></li>
+<li><a class="reference internal" href="#contributors" id="toc-entry-14">Contributors</a></li>
+<li><a class="reference internal" href="#maintainers" id="toc-entry-15">Maintainers</a></li>
 </ul>
 </li>
 </ul>
 </div>
+<div class="section" id="configuration">
+<h2><a class="toc-backref" href="#toc-entry-1">Configuration</a></h2>
+<div class="section" id="backend-pricing-settings">
+<h3><a class="toc-backref" href="#toc-entry-2">Backend pricing settings</a></h3>
+<p>Open <strong>Amazon → Pricing → (your backend)</strong> and fill the <strong>Pricing</strong>
+section:</p>
+<ul class="simple">
+<li><strong>Amazon Seller ID</strong> — Merchant Token from Seller Central → Account
+Info → Merchant Token. Required for <strong>Import Listings</strong> and <strong>Push
+Prices</strong>.</li>
+<li><strong>Pricing Mode</strong>:<ul>
+<li><em>Odoo Pricelist</em> — pushes the price from the backend’s pricelist
+(<tt class="docutils literal">pricelist_id</tt>, configured by <tt class="docutils literal">connector_amazon_sale</tt>).</li>
+<li><em>Amazon Competitive Floor</em> — prices against the live buy box (see
+rules below).</li>
+<li><em>Manual / No Sync</em> — never computes or pushes a price (Push Prices
+button hidden).</li>
+</ul>
+</li>
+<li><strong>Auto Price Push</strong> — when on, this backend is included in the
+scheduled sync.</li>
+</ul>
+<div class="section" id="competitive-mode-rules-shown-only-in-competitive-mode">
+<h4><a class="toc-backref" href="#toc-entry-3">Competitive mode rules (shown only in Competitive mode)</a></h4>
+<ul class="simple">
+<li><strong>Competitive Rule</strong>:<ul>
+<li><em>Match Buy Box</em> — target = current buy-box price.</li>
+<li><em>Undercut Buy Box by %</em> — target = buy box × (1 − Undercut %).</li>
+<li><em>Floor: Cost + Margin %</em> — competes at the buy box but never below
+the floor.</li>
+</ul>
+</li>
+<li><strong>Undercut %</strong> — only shown for the undercut rule; e.g. <tt class="docutils literal">1.0</tt> = 1%
+under buy box.</li>
+<li><strong>Floor Margin %</strong> — applied to <em>every</em> competitive rule as a hard
+floor: target is never below
+<tt class="docutils literal">standard_price × (1 + Floor Margin % / 100)</tt>. If the buy box is
+below the floor, the listing is priced at the floor instead of
+matching.</li>
+</ul>
+<p>A computed price needs a buy-box price on the listing — run <strong>Sync
+Competitive Prices</strong> (or enable the cron) before expecting a push in
+competitive mode.</p>
+</div>
+</div>
+<div class="section" id="scheduled-action">
+<h3><a class="toc-backref" href="#toc-entry-4">Scheduled action</a></h3>
+<p>The cron <strong>Amazon: Sync Prices</strong> (<tt class="docutils literal">ir_cron_amz_sync_prices</tt>) ships
+<strong>disabled</strong> (<tt class="docutils literal">active=False</tt>) because it makes live SP-API calls. To
+enable:</p>
+<ol class="arabic simple">
+<li>Go to <strong>Settings → Technical → Automation → Scheduled Actions</strong>.</li>
+<li>Open <strong>Amazon: Sync Prices</strong>, set it active, adjust the interval if
+needed (default every 30 minutes).</li>
+<li>It only acts on backends where <strong>Auto Price Push</strong> is enabled.</li>
+</ol>
+</div>
+<div class="section" id="permissions">
+<h3><a class="toc-backref" href="#toc-entry-5">Permissions</a></h3>
+<ul class="simple">
+<li><strong>Amazon Manager</strong> (<tt class="docutils literal">group_amz_manager</tt>) — full read/write on
+listings and price history.</li>
+<li><strong>Amazon User</strong> (<tt class="docutils literal">group_amz_user</tt>) — read-only.</li>
+</ul>
+</div>
+</div>
+<div class="section" id="usage">
+<h2><a class="toc-backref" href="#toc-entry-6">Usage</a></h2>
+<p>This guide assumes the backend is already configured (see CONFIGURE).</p>
+<div class="section" id="import-your-amazon-listings">
+<h3><a class="toc-backref" href="#toc-entry-7">Import your Amazon listings</a></h3>
+<ol class="arabic simple">
+<li>Go to <strong>Amazon → Pricing → (your backend)</strong> and open the backend
+form.</li>
+<li>Make sure <strong>Amazon Seller ID</strong> is set under the <strong>Pricing</strong> section
+(the Merchant Token from Seller Central → Account Info → Merchant
+Token). Imports fail with an error if it is empty.</li>
+<li>Click <strong>Import Listings</strong> in the form header. This calls the Listings
+Items API and creates one <strong>Amazon Listing</strong> (<tt class="docutils literal">amz.listing</tt>) per
+SKU that matches an Odoo product by Internal Reference
+(<tt class="docutils literal">default_code</tt>). SKUs with no matching product are skipped (logged
+as a warning). Pagination is followed automatically, so all pages
+import in one click.</li>
+<li>A “Listings Imported” notification reports how many records were
+created or updated. Re-running is safe — existing listings are
+updated in place (ASIN / product), never duplicated.</li>
+</ol>
+<p>Listings auto-create on order import too: when <tt class="docutils literal">connector_amazon_sale</tt>
+imports an order, any new SKU with a matching Odoo product gets an
+<tt class="docutils literal">amz.listing</tt> automatically.</p>
+</div>
+<div class="section" id="review-listings">
+<h3><a class="toc-backref" href="#toc-entry-8">Review listings</a></h3>
+<ol class="arabic simple">
+<li>Open <strong>Amazon → Pricing → Listings</strong> for the full list, or use the
+<strong>Listings</strong> tab on the backend form.</li>
+<li>Each listing shows SKU, ASIN, the linked product, current list price,
+buy-box price, computed target price and the last push timestamp.</li>
+</ol>
+</div>
+<div class="section" id="push-prices-to-amazon">
+<h3><a class="toc-backref" href="#toc-entry-9">Push prices to Amazon</a></h3>
+<ol class="arabic simple">
+<li>Choose a <strong>Pricing Mode</strong> on the backend (see CONFIGURE for what each
+mode does).</li>
+<li>In <strong>Competitive</strong> mode, click <strong>Sync Competitive Prices</strong> first to
+pull the current buy-box prices from Amazon into the listings (this
+button is only shown in competitive mode).</li>
+<li>Click <strong>Push Prices</strong> in the form header (shown in every mode except
+<em>Manual</em>). This queues a background job that, for each active
+listing, computes the target price for the current mode and PATCHes
+it to Amazon via the Listings Items API.</li>
+<li>Every price <em>change</em> is recorded in <strong>Amazon → Pricing → Price
+History</strong> (<tt class="docutils literal">amz.price.history</tt>): old price, new price, the pricing
+rule used, and the trigger (Manual / Scheduled / Offer Notification).
+Unchanged prices are not logged, so the history stays signal-only.</li>
+</ol>
+</div>
+<div class="section" id="automatic-price-sync">
+<h3><a class="toc-backref" href="#toc-entry-10">Automatic price sync</a></h3>
+<ol class="arabic simple">
+<li>Enable <strong>Auto Price Push</strong> on the backend.</li>
+<li>Enable the <strong>Amazon: Sync Prices</strong> scheduled action (ships disabled —
+see CONFIGURE). It runs every 30 minutes and, for each backend with
+<strong>Auto Price Push</strong> on, pulls competitive prices (competitive mode
+only) then pushes.</li>
+</ol>
+</div>
+</div>
 <div class="section" id="bug-tracker">
-<h2><a class="toc-backref" href="#toc-entry-1">Bug Tracker</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-11">Bug Tracker</a></h2>
 <p>Bugs are tracked on <a class="reference external" href="https://github.com/OCA/connector-amazon/issues">GitHub Issues</a>.
 In case of trouble, please check there if your issue has already been reported.
 If you spotted it first, help us to smash it by providing a detailed and welcomed
@@ -416,21 +561,21 @@ If you spotted it first, help us to smash it by providing a detailed and welcome
 <p>Do not contact contributors directly about support or help with technical issues.</p>
 </div>
 <div class="section" id="credits">
-<h2><a class="toc-backref" href="#toc-entry-2">Credits</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-12">Credits</a></h2>
 <div class="section" id="authors">
-<h3><a class="toc-backref" href="#toc-entry-3">Authors</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-13">Authors</a></h3>
 <ul class="simple">
 <li>Ledo</li>
 </ul>
 </div>
 <div class="section" id="contributors">
-<h3><a class="toc-backref" href="#toc-entry-4">Contributors</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-14">Contributors</a></h3>
 <ul class="simple">
 <li>Don Kendall &lt;<a class="reference external" href="mailto:dkendall&#64;ledoweb.com">dkendall&#64;ledoweb.com</a>&gt;</li>
 </ul>
 </div>
 <div class="section" id="maintainers">
-<h3><a class="toc-backref" href="#toc-entry-5">Maintainers</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-15">Maintainers</a></h3>
 <p>This module is maintained by the OCA.</p>
 <a class="reference external image-reference" href="https://odoo-community.org">
 <img alt="Odoo Community Association" src="https://odoo-community.org/logo.png" />

@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock, patch
 
+from odoo.exceptions import UserError
 from odoo.tests.common import TransactionCase
 from odoo.tools import mute_logger
 
@@ -177,6 +178,95 @@ class TestPricing(TransactionCase):
         self.assertEqual(api_instance.search_listings_items.call_count, 2)
         second_call_kwargs = api_instance.search_listings_items.call_args_list[1].kwargs
         self.assertEqual(second_call_kwargs.get("pageToken"), "tok_page2")
+
+    # ── action wrappers / UserError guards ───────────────────────────────────
+
+    def test_action_import_listings_requires_seller_id(self):
+        """action_import_listings raises UserError when seller_id is empty."""
+        self.backend.seller_id = False
+        with self.assertRaises(UserError):
+            self.backend.action_import_listings()
+
+    def test_action_push_prices_requires_seller_id(self):
+        """action_push_prices raises UserError when seller_id is empty."""
+        self.backend.seller_id = False
+        with self.assertRaises(UserError):
+            self.backend.action_push_prices()
+
+    def test_action_push_prices_enqueues_job(self):
+        """With a seller_id set, the wrapper enqueues a delayed push job."""
+        queued = []
+
+        def capturing_with_delay(self_inner, **kw):
+            queued.append(kw.get("description", ""))
+            return MagicMock()
+
+        with patch.object(type(self.backend), "with_delay", capturing_with_delay):
+            self.backend.action_push_prices()
+
+        self.assertEqual(len(queued), 1)
+
+    def test_action_sync_competitive_prices_enqueues_job(self):
+        """The competitive-pull wrapper enqueues a delayed job."""
+        queued = []
+
+        def capturing_with_delay(self_inner, **kw):
+            queued.append(kw.get("description", ""))
+            return MagicMock()
+
+        with patch.object(type(self.backend), "with_delay", capturing_with_delay):
+            self.backend.action_sync_competitive_prices()
+
+        self.assertEqual(len(queued), 1)
+
+    # ── _compute_listing_price mode branches ─────────────────────────────────
+
+    def test_compute_listing_price_manual_mode_returns_none(self):
+        """Manual mode never computes a price."""
+        self.backend.pricing_mode = "manual"
+        listing = self.env["amz.listing"].create(
+            {
+                "backend_id": self.backend.id,
+                "product_id": self.product.id,
+                "seller_sku": AMZ_SKU,
+            }
+        )
+        self.assertIsNone(self.backend._compute_listing_price(listing))
+
+    def test_compute_listing_price_pricelist_mode_no_pricelist_returns_none(self):
+        """Pricelist mode with no pricelist configured returns None."""
+        listing = self.env["amz.listing"].create(
+            {
+                "backend_id": self.backend.id,
+                "product_id": self.product.id,
+                "seller_sku": AMZ_SKU,
+            }
+        )
+        self.backend.pricelist_id = False
+        self.assertIsNone(self.backend._compute_listing_price(listing))
+        self.backend.pricelist_id = self.pricelist
+
+    # ── _patch_listing_price_to_api currency fallback ────────────────────────
+
+    def test_patch_listing_price_currency_fallback_to_usd(self):
+        """A listing whose currency has no name falls back to USD in the body."""
+        api = MagicMock()
+        listing = self.env["amz.listing"].create(
+            {
+                "backend_id": self.backend.id,
+                "product_id": self.product.id,
+                "seller_sku": AMZ_SKU,
+            }
+        )
+        # currency_id is a related field; simulate a currency with no ISO name to
+        # exercise the `listing.currency_id.name or "USD"` fallback branch.
+        empty_currency = self.env["res.currency"]
+        with patch.object(type(listing), "currency_id", new=empty_currency):
+            self.backend._patch_listing_price_to_api(api, listing, 19.99)
+
+        body = api.patch_listings_item.call_args.kwargs["body"]
+        currency = body["patches"][0]["value"][0]["currency"]
+        self.assertEqual(currency, "USD")
 
     # ── price-history audit trail ─────────────────────────────────────────────
 
