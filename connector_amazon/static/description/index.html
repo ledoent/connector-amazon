@@ -394,17 +394,176 @@ via <tt class="docutils literal">ConfirmShipment</tt>.</li>
 <p><strong>Table of contents</strong></p>
 <div class="contents local topic" id="contents">
 <ul class="simple">
-<li><a class="reference internal" href="#bug-tracker" id="toc-entry-1">Bug Tracker</a></li>
-<li><a class="reference internal" href="#credits" id="toc-entry-2">Credits</a><ul>
-<li><a class="reference internal" href="#authors" id="toc-entry-3">Authors</a></li>
-<li><a class="reference internal" href="#contributors" id="toc-entry-4">Contributors</a></li>
-<li><a class="reference internal" href="#maintainers" id="toc-entry-5">Maintainers</a></li>
+<li><a class="reference internal" href="#configuration" id="toc-entry-1">Configuration</a><ul>
+<li><a class="reference internal" href="#amazon-selling-partner-api-access" id="toc-entry-2">Amazon Selling Partner API access</a></li>
+<li><a class="reference internal" href="#backend-configuration" id="toc-entry-3">Backend configuration</a></li>
+<li><a class="reference internal" href="#scheduled-import-cron" id="toc-entry-4">Scheduled import (cron)</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#usage" id="toc-entry-5">Usage</a></li>
+<li><a class="reference internal" href="#bug-tracker" id="toc-entry-6">Bug Tracker</a></li>
+<li><a class="reference internal" href="#credits" id="toc-entry-7">Credits</a><ul>
+<li><a class="reference internal" href="#authors" id="toc-entry-8">Authors</a></li>
+<li><a class="reference internal" href="#contributors" id="toc-entry-9">Contributors</a></li>
+<li><a class="reference internal" href="#maintainers" id="toc-entry-10">Maintainers</a></li>
 </ul>
 </li>
 </ul>
 </div>
+<div class="section" id="configuration">
+<h2><a class="toc-backref" href="#toc-entry-1">Configuration</a></h2>
+<div class="section" id="amazon-selling-partner-api-access">
+<h3><a class="toc-backref" href="#toc-entry-2">Amazon Selling Partner API access</a></h3>
+<p>Before configuring a backend you need Login with Amazon (LWA)
+credentials for the SP-API:</p>
+<ol class="arabic simple">
+<li>Register (or reuse) an SP-API application in <strong>Seller Central &gt; Apps
+&amp; Services &gt; Develop Apps</strong>. You need the developer role on the
+selling account.</li>
+<li>From the app, obtain the <strong>LWA Client ID</strong> and <strong>LWA Client Secret</strong>.</li>
+<li>Authorize the app against your selling account and exchange the
+authorization for a long-lived <strong>LWA Refresh Token</strong>.</li>
+<li>(Optional) For testing without touching live orders, create
+credentials in the <strong>SP-API sandbox</strong> and enable <em>Sandbox Mode</em> on
+the backend. Sandbox uses the reserved <tt class="docutils literal">TEST_CASE_200</tt> query and
+the <tt class="docutils literal"><span class="pre">sandbox.sellingpartnerapi-*</span></tt> endpoints.</li>
+</ol>
+<p>This module talks to SP-API directly over HTTPS via the
+<tt class="docutils literal"><span class="pre">python-amazon-sp-api</span></tt> library (declared in
+<tt class="docutils literal">external_dependencies</tt>); no AWS IAM role or SQS queue is required.</p>
+</div>
+<div class="section" id="backend-configuration">
+<h3><a class="toc-backref" href="#toc-entry-3">Backend configuration</a></h3>
+<p>Create a backend at <strong>Amazon &gt; Configuration &gt; Backends</strong> (requires the
+<em>Amazon / Manager</em> group) and fill in:</p>
+<table border="1" class="docutils">
+<colgroup>
+<col width="42%" />
+<col width="17%" />
+<col width="42%" />
+</colgroup>
+<thead valign="bottom">
+<tr><th class="head">Field</th>
+<th class="head">Required</th>
+<th class="head">Notes</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr><td><strong>Backend Name</strong></td>
+<td>yes</td>
+<td>Free-text label.</td>
+</tr>
+<tr><td><strong>LWA Client ID</strong></td>
+<td>yes</td>
+<td>From your SP-API app.</td>
+</tr>
+<tr><td><strong>LWA Client Secret</strong></td>
+<td>yes</td>
+<td>Stored; visible only to
+<em>Settings</em> admins.</td>
+</tr>
+<tr><td><strong>LWA Refresh Token</strong></td>
+<td>yes</td>
+<td>Long-lived token; visible
+only to <em>Settings</em>
+admins.</td>
+</tr>
+<tr><td><strong>Marketplace</strong></td>
+<td>yes</td>
+<td>Selects the marketplace
+and its SP-API region (NA
+/ EU / FE endpoint).
+Defaults to <em>US —
+amazon.com</em>.</td>
+</tr>
+<tr><td><strong>Sandbox Mode</strong></td>
+<td>no</td>
+<td>Use the SP-API sandbox
+endpoints and the
+<tt class="docutils literal">TEST_CASE_200</tt> test
+query. Off for
+production.</td>
+</tr>
+<tr><td><strong>Company</strong></td>
+<td>yes</td>
+<td>Multi-company only;
+defaults to the current
+company.</td>
+</tr>
+<tr><td><strong>Warehouse</strong></td>
+<td>yes</td>
+<td>Source warehouse for
+orders/shipments;
+defaults to the company’s
+first warehouse.</td>
+</tr>
+<tr><td><strong>Initial Import Days
+Back</strong></td>
+<td>no</td>
+<td>On the first import,
+fetch orders updated
+within this many days
+(default 7).</td>
+</tr>
+<tr><td><strong>Last Order Import</strong></td>
+<td>read-only</td>
+<td>Incremental polling
+cursor, advanced
+automatically.</td>
+</tr>
+</tbody>
+</table>
+<p>After saving, click <strong>Test Connection</strong> to verify credentials.</p>
+<blockquote>
+The Client Secret and Refresh Token fields are restricted to the
+<em>Settings / Administration</em> group (<tt class="docutils literal">base.group_system</tt>). Plain
+<em>Amazon / Manager</em> users can edit the backend but will not see those
+two fields.</blockquote>
+</div>
+<div class="section" id="scheduled-import-cron">
+<h3><a class="toc-backref" href="#toc-entry-4">Scheduled import (cron)</a></h3>
+<p>The module ships an <strong>Amazon: Import Orders</strong> scheduled action
+(<tt class="docutils literal">data/ir_cron.xml</tt>) that polls every 5 minutes. It is <strong>disabled by
+default</strong> so the connector never hits the live API until you opt in.</p>
+<p>Enable it at <strong>Settings &gt; Technical &gt; Automation &gt; Scheduled Actions</strong>
+<em>only after</em> installing <strong>connector_amazon_sale</strong> — the cron calls
+<tt class="docutils literal">backend.import_orders()</tt>, which that module provides. With only the
+core module installed the order import is a no-op (a warning is logged).</p>
+</div>
+</div>
+<div class="section" id="usage">
+<h2><a class="toc-backref" href="#toc-entry-5">Usage</a></h2>
+<p>To use the Amazon connector:</p>
+<ol class="arabic simple">
+<li>Open the <strong>Amazon</strong> top menu (visible to users in the <em>Amazon / User</em>
+group).</li>
+<li>Go to <strong>Amazon &gt; Configuration &gt; Backends</strong> and open (or create) the
+backend record for your Selling Partner account. Creating and editing
+backends requires the <em>Amazon / Manager</em> group.</li>
+<li>With credentials filled in (see CONFIGURE), click <strong>Test Connection</strong>
+in the backend form header. A green <em>Connection successful</em>
+notification confirms Odoo can reach the SP-API and reports how many
+recent orders were returned; a red error means the credentials or
+marketplace are wrong.</li>
+<li>Imported Amazon orders appear under <strong>Amazon &gt; Sales &gt; Orders</strong> as
+<tt class="docutils literal">amz.order</tt> staging records, each showing the Amazon order ID,
+status, fulfillment channel (Merchant/MFN or Amazon/FBA), totals, and
+the linked Odoo sale order once one exists.</li>
+<li>Open an Amazon order to see its <strong>Order Lines</strong> tab (ASIN, Seller
+SKU, quantities, item price, tax) and, via the <strong>Sale Order</strong> stat
+button, jump to the Odoo <tt class="docutils literal">sale.order</tt> it was mapped to.</li>
+<li>Use the search filters <strong>Unshipped</strong> and <strong>Not Imported</strong>, or group
+by <strong>Backend</strong> / <strong>Amazon Status</strong>, to triage orders.</li>
+</ol>
+<!--  -->
+<blockquote>
+The core module only stores and displays orders. To actually import
+orders into <tt class="docutils literal">sale.order</tt>, install <strong>connector_amazon_sale</strong>; to
+push tracking numbers back to Amazon, install
+<strong>connector_amazon_stock</strong>.</blockquote>
+</div>
 <div class="section" id="bug-tracker">
-<h2><a class="toc-backref" href="#toc-entry-1">Bug Tracker</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-6">Bug Tracker</a></h2>
 <p>Bugs are tracked on <a class="reference external" href="https://github.com/OCA/connector-amazon/issues">GitHub Issues</a>.
 In case of trouble, please check there if your issue has already been reported.
 If you spotted it first, help us to smash it by providing a detailed and welcomed
@@ -412,21 +571,21 @@ If you spotted it first, help us to smash it by providing a detailed and welcome
 <p>Do not contact contributors directly about support or help with technical issues.</p>
 </div>
 <div class="section" id="credits">
-<h2><a class="toc-backref" href="#toc-entry-2">Credits</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-7">Credits</a></h2>
 <div class="section" id="authors">
-<h3><a class="toc-backref" href="#toc-entry-3">Authors</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-8">Authors</a></h3>
 <ul class="simple">
 <li>Ledo</li>
 </ul>
 </div>
 <div class="section" id="contributors">
-<h3><a class="toc-backref" href="#toc-entry-4">Contributors</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-9">Contributors</a></h3>
 <ul class="simple">
 <li>Don Kendall &lt;<a class="reference external" href="mailto:dkendall&#64;ledoweb.com">dkendall&#64;ledoweb.com</a>&gt;</li>
 </ul>
 </div>
 <div class="section" id="maintainers">
-<h3><a class="toc-backref" href="#toc-entry-5">Maintainers</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-10">Maintainers</a></h3>
 <p>This module is maintained by the OCA.</p>
 <a class="reference external image-reference" href="https://odoo-community.org">
 <img alt="Odoo Community Association" src="https://odoo-community.org/logo.png" />

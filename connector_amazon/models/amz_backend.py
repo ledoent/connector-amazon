@@ -1,7 +1,10 @@
+import logging
 import types
 
 from odoo import fields, models
 from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
 
 MARKETPLACES = [
     ("ATVPDKIKX0DER", "US — amazon.com"),
@@ -132,6 +135,20 @@ class AmazonBackend(models.Model):
         return api_class(
             marketplace=fake_marketplace,
             credentials=self._get_credentials(),
+        )
+
+    def import_orders(self):
+        """No-op placeholder overridden by ``connector_amazon_sale``.
+
+        The *Amazon: Import Orders* scheduled action ships with the core module,
+        but the actual import logic is provided by ``connector_amazon_sale``.
+        With only the core installed the cron resolves to this stub, so enabling
+        it logs a warning instead of raising ``AttributeError``.
+        """
+        _logger.warning(
+            "Amazon order import requires connector_amazon_sale; "
+            "nothing imported for backend %s.",
+            self.display_name,
         )
 
     def action_test_connection(self):
