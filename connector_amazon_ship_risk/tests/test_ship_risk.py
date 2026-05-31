@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 from odoo import fields
@@ -96,6 +96,43 @@ class TestShipRisk(TransactionCase):
         order = self._order(status="Shipped", cutoff=past)
         order._update_ship_risk()
         self.assertEqual(order.ship_risk, "none")
+
+    def test_hours_to_cutoff_uses_working_calendar(self):
+        # A Mon-Fri 09:00-17:00 calendar: a multi-day span has far fewer
+        # working hours than wall-clock hours, so the countdown must shrink.
+        calendar = self.env["resource.calendar"].create(
+            {
+                "name": "Ship Working Hours",
+                "tz": "UTC",
+                "attendance_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "name": d,
+                            "dayofweek": str(i),
+                            "hour_from": 9.0,
+                            "hour_to": 17.0,
+                        },
+                    )
+                    for i, d in enumerate(["Mon", "Tue", "Wed", "Thu", "Fri"])
+                ],
+            }
+        )
+        # Fixed window spanning a full week (Mon 09:00 -> next Mon 09:00 UTC):
+        # 168 wall-clock hours, 5 working days * 8h = 40 working hours.
+        now = datetime(2026, 6, 1, 9, 0, 0)  # Monday
+        cutoff = datetime(2026, 6, 8, 9, 0, 0)  # the following Monday
+        order = self._order(cutoff=cutoff)
+
+        wall_clock = order._hours_to_cutoff(now)
+        self.assertAlmostEqual(wall_clock, 168.0)
+
+        self.backend.ship_risk_calendar_id = calendar
+        order.invalidate_recordset()
+        working = order._hours_to_cutoff(now)
+        self.assertAlmostEqual(working, 40.0)
+        self.assertLess(working, wall_clock)
 
     def test_parse_amz_datetime(self):
         parsed = self.backend._parse_amz_datetime("2026-06-01T23:59:59Z")

@@ -1,6 +1,6 @@
 {
     "name": "Amazon SP-API Connector: Shipping Risk",
-    "version": "19.0.1.0.0",
+    "version": "19.0.1.1.0",
     "category": "Sales/Sales",
     "summary": "Flag merchant orders at risk of missing the Amazon ship-by cutoff",
     "author": "Ledo, Odoo Community Association (OCA)",
