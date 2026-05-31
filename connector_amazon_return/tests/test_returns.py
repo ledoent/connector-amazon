@@ -320,6 +320,101 @@ class TestReturns(TransactionCase):
         self.assertTrue(ret.credit_note_id, "credit note self-healed")
         self.assertEqual(ret.state, "credited")
 
+    def test_credit_note_skips_product_not_on_invoice(self):
+        """A returned product absent from the original invoice is logged and
+        skipped; with no other returned line, no credit note is created."""
+        # Invoice posts a *different* product than the one being returned.
+        other = self.env["product.product"].create(
+            {"name": "Other Item", "default_code": "OTHER-SKU", "type": "consu"}
+        )
+        income = self.env["account.account"].create(
+            {"name": "Amz Income 2", "code": "RTINC2", "account_type": "income"}
+        )
+        sale_journal = self.env["account.journal"].search(
+            [("type", "=", "sale"), ("company_id", "=", self.env.company.id)], limit=1
+        ) or self.env["account.journal"].create(
+            {"name": "Sales", "type": "sale", "code": "RTSJ2"}
+        )
+        line = self.env["sale.order.line"].create(
+            {"order_id": self.sale.id, "name": "x", "product_id": other.id}
+        )
+        invoice = self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "partner_id": self.partner.id,
+                "journal_id": sale_journal.id,
+                "invoice_line_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "product_id": other.id,
+                            "name": "Other Item",
+                            "quantity": 1,
+                            "price_unit": 10.0,
+                            "tax_ids": [(6, 0, [])],
+                            "account_id": income.id,
+                            "sale_line_ids": [(6, 0, [line.id])],
+                        },
+                    )
+                ],
+            }
+        )
+        invoice.action_post()
+
+        self.backend.amazon_auto_credit_note = True
+        with mute_logger(LOGGER):
+            self.backend._parse_returns_xml(RETURNS_XML)
+        ret = self.env["amz.return"].search([("rma_id", "=", "RMA-001")])
+        # The returned product isn't on the invoice → its line drops → no lines →
+        # no credit note created, and the return is not marked credited.
+        self.assertFalse(ret.credit_note_id, "no matching line → no credit note")
+        self.assertEqual(ret.state, "new")
+
+    def test_no_restock_picking_when_no_stockable_lines(self):
+        """A return whose only product is a service yields no restock picking."""
+        service = self.env["product.product"].create(
+            {"name": "Svc", "default_code": SKU, "type": "service"}
+        )
+        # Point the order line / return at the service product via the SKU map.
+        self.product.default_code = "ARCHIVED-SKU"
+        service.default_code = SKU
+        self.backend.amazon_auto_return_picking = True
+        with mute_logger(LOGGER):
+            self.backend._parse_returns_xml(RETURNS_XML)
+        ret = self.env["amz.return"].search([("rma_id", "=", "RMA-001")])
+        self.assertEqual(ret.line_ids.product_id, service)
+        self.assertFalse(ret.return_picking_id, "service line → no restock picking")
+        self.assertEqual(ret.state, "new")
+
+    def test_sync_returns_cron_filters_disabled_backends(self):
+        """The cron entry point enqueues only active backends with Sync Returns
+        enabled."""
+        self.backend.amazon_returns_enabled = True
+        disabled = self.env["amz.backend"].create(
+            {
+                "name": "Returns Off",
+                "client_id": "c",
+                "client_secret": "c",
+                "refresh_token": "r",
+                "marketplace_id": "ATVPDKIKX0DER",
+                "warehouse_id": self.warehouse.id,
+                "amazon_returns_enabled": False,
+            }
+        )
+        enqueued = []
+
+        def capturing_with_delay(self_inner, **kw):
+            enqueued.append(self_inner)
+            return MagicMock()
+
+        backends = self.backend + disabled
+        with patch.object(type(self.backend), "with_delay", capturing_with_delay):
+            backends.sync_returns()
+
+        self.assertIn(self.backend, enqueued)
+        self.assertNotIn(disabled, enqueued)
+
     def test_report_fatal_sets_error(self):
         """A FATAL/CANCELLED report is marked error and parses nothing."""
         api = self._mock_reports_api(RETURNS_XML)
