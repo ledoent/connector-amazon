@@ -177,3 +177,43 @@ class TestDashboard(TransactionCase):
         self.assertEqual(jobs["res_model"], "queue.job")
         # queue.job is server-wide: no backend scoping on the drill-down.
         self.assertNotIn(("backend_id", "in", self.backend.ids), jobs["domain"])
+
+    def test_drilldown_below_margin_and_price_changes(self):
+        d = self._dash(self.backend)
+        below = d.action_open_below_margin()
+        self.assertEqual(below["res_model"], "amz.listing")
+        self.assertIn(("below_target_margin", "=", True), below["domain"])
+        self.assertIn(("backend_id", "in", self.backend.ids), below["domain"])
+
+        prices = d.action_open_price_changes()
+        self.assertEqual(prices["res_model"], "amz.price.history")
+        self.assertIn(("backend_id", "in", self.backend.ids), prices["domain"])
+
+    def test_health_ok_for_clean_backend(self):
+        """A backend with no failed jobs, variances, drift, or below-margin
+        listings reports health 'ok' — the complement of the seeded backend."""
+        d = self._dash(self.other)
+        self.assertEqual(d.recon_variance, 0)
+        self.assertEqual(d.fba_drift_skus, 0)
+        self.assertEqual(d.listings_below_margin, 0)
+        self.assertEqual(d.health_status, "ok")
+        # Zero-denominator / empty-list guards on the empty backend.
+        self.assertEqual(d.buybox_win_rate, 0.0)
+        self.assertEqual(d.avg_margin, 0.0)
+
+    def test_fba_total_drift_uses_absolute_value(self):
+        """A SKU where Odoo on-hand exceeds Amazon's fulfillable qty contributes
+        its absolute drift to the total (not a negative offset)."""
+        # Existing seeded SKU drifts +7 (10 - 3). Add one drifting -4 (2 - 6).
+        self.env["amz.fba.inventory"].create(
+            {
+                "backend_id": self.backend.id,
+                "seller_sku": "DASH-SKU-NEG",
+                "fulfillable_qty": 2.0,
+                "odoo_qty": 6.0,
+            }
+        )
+        d = self._dash(self.backend)
+        self.assertEqual(d.fba_drift_skus, 2)
+        # abs(+7) + abs(-4) = 11, not 7 - 4 = 3.
+        self.assertAlmostEqual(d.fba_total_drift, 11.0)

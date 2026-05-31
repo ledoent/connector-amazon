@@ -1,6 +1,6 @@
 {
     "name": "Amazon SP-API Connector: Dashboard",
-    "version": "19.0.1.2.0",
+    "version": "19.0.1.3.0",
     "category": "Sales/Sales",
     "summary": "Health and KPI dashboard across the Amazon connector suite",
     "author": "Ledo, Odoo Community Association (OCA)",
