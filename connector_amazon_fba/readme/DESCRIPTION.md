@@ -4,8 +4,8 @@ the **drift** against Odoo on-hand, so discrepancies between what Amazon holds
 and what Odoo thinks it holds are visible at a glance.
 
 Per SKU it records the fulfillable, inbound (working + shipped + receiving),
-reserved, unsellable, and total FBA quantities, snapshots Odoo on-hand
-(`product.qty_available`), and computes ``drift = fulfillable − odoo_qty``.
+reserved, unsellable, and total FBA quantities, snapshots the backend
+warehouse on-hand, and computes ``drift = fulfillable − odoo_qty``.
 Browse it under **Amazon → FBA Inventory**, with a **Drift** filter to surface
 mismatches.
 

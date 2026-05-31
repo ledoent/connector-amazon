@@ -382,7 +382,7 @@ on-hand, so discrepancies between what Amazon holds and what Odoo thinks
 it holds are visible at a glance.</p>
 <p>Per SKU it records the fulfillable, inbound (working + shipped +
 receiving), reserved, unsellable, and total FBA quantities, snapshots
-Odoo on-hand (<tt class="docutils literal">product.qty_available</tt>), and computes
+the backend warehouse on-hand, and computes
 <tt class="docutils literal">drift = fulfillable − odoo_qty</tt>. Browse it under <strong>Amazon → FBA
 Inventory</strong>, with a <strong>Drift</strong> filter to surface mismatches.</p>
 <p>This module is <strong>read-only</strong> — it never writes to Amazon. A <strong>Sync FBA
@@ -393,16 +393,65 @@ scope for this module.</p>
 <p><strong>Table of contents</strong></p>
 <div class="contents local topic" id="contents">
 <ul class="simple">
-<li><a class="reference internal" href="#bug-tracker" id="toc-entry-1">Bug Tracker</a></li>
-<li><a class="reference internal" href="#credits" id="toc-entry-2">Credits</a><ul>
-<li><a class="reference internal" href="#authors" id="toc-entry-3">Authors</a></li>
-<li><a class="reference internal" href="#maintainers" id="toc-entry-4">Maintainers</a></li>
+<li><a class="reference internal" href="#configuration" id="toc-entry-1">Configuration</a></li>
+<li><a class="reference internal" href="#usage" id="toc-entry-2">Usage</a></li>
+<li><a class="reference internal" href="#bug-tracker" id="toc-entry-3">Bug Tracker</a></li>
+<li><a class="reference internal" href="#credits" id="toc-entry-4">Credits</a><ul>
+<li><a class="reference internal" href="#authors" id="toc-entry-5">Authors</a></li>
+<li><a class="reference internal" href="#maintainers" id="toc-entry-6">Maintainers</a></li>
 </ul>
 </li>
 </ul>
 </div>
+<div class="section" id="configuration">
+<h2><a class="toc-backref" href="#toc-entry-1">Configuration</a></h2>
+<ol class="arabic simple">
+<li><strong>Enable the backends you want synced.</strong> Open <strong>Amazon →
+Configuration → Backends</strong>, and for each backend tick <strong>Sync FBA
+Inventory</strong> in the <em>FBA</em> section. Backends left unticked are skipped
+by the scheduled job (the manual <strong>Sync FBA Inventory</strong> button still
+works on any backend).</li>
+<li><strong>Enable the scheduled pull.</strong> The cron <strong>Amazon: Sync FBA
+Inventory</strong> ships <strong>disabled</strong>. To poll automatically, enable it
+under <strong>Settings → Technical → Scheduled Actions</strong>. It runs every 6
+hours by default and enqueues one pull job per enabled, active
+backend; adjust the interval there to taste.</li>
+<li><strong>SKU matching.</strong> FBA rows are linked to Odoo products by <strong>Internal
+Reference</strong> (<tt class="docutils literal">default_code</tt>) matching Amazon’s seller SKU. SKUs
+with no matching product are still recorded (so the drift is visible)
+but have no product and an Odoo on-hand of 0.</li>
+<li><strong>Warehouse.</strong> Drift is computed against the <strong>on-hand of the
+backend’s warehouse</strong>, not global on-hand, so each backend must have
+its <strong>Warehouse</strong> set for the comparison to be meaningful.</li>
+</ol>
+</div>
+<div class="section" id="usage">
+<h2><a class="toc-backref" href="#toc-entry-2">Usage</a></h2>
+<ol class="arabic simple">
+<li>Enable the sync per backend: open <strong>Amazon → Configuration →
+Backends</strong>, pick a backend, and tick <strong>Sync FBA Inventory</strong> (under
+the <em>FBA</em> section). Only ticked, active backends are pulled by the
+scheduled job.</li>
+<li>Pull on demand at any time with the <strong>Sync FBA Inventory</strong> button in
+the backend form header — this queues a background job and does not
+wait for Amazon.</li>
+<li>Browse the result under <strong>Amazon → Fulfillment → FBA Inventory</strong>.
+Each row is one seller SKU on one backend, with Amazon’s fulfillable,
+inbound, reserved, unsellable and total FBA quantities, the matched
+Odoo product, and the backend warehouse on-hand.</li>
+<li><strong>Drift</strong> = fulfillable − backend warehouse on-hand. Use the
+<strong>Drift</strong> filter (or the amber row highlight) to surface SKUs where
+Amazon and Odoo disagree. Group by <strong>Backend</strong> when you run more than
+one marketplace.</li>
+<li><strong>Last FBA Sync</strong> on the backend form shows when the last successful
+pull finished.</li>
+</ol>
+<p>This module is read-only — it never writes stock back to Amazon or to
+Odoo on-hand; it only records what Amazon reports so you can see the
+discrepancy.</p>
+</div>
 <div class="section" id="bug-tracker">
-<h2><a class="toc-backref" href="#toc-entry-1">Bug Tracker</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-3">Bug Tracker</a></h2>
 <p>Bugs are tracked on <a class="reference external" href="https://github.com/OCA/connector-amazon/issues">GitHub Issues</a>.
 In case of trouble, please check there if your issue has already been reported.
 If you spotted it first, help us to smash it by providing a detailed and welcomed
@@ -410,15 +459,15 @@ If you spotted it first, help us to smash it by providing a detailed and welcome
 <p>Do not contact contributors directly about support or help with technical issues.</p>
 </div>
 <div class="section" id="credits">
-<h2><a class="toc-backref" href="#toc-entry-2">Credits</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-4">Credits</a></h2>
 <div class="section" id="authors">
-<h3><a class="toc-backref" href="#toc-entry-3">Authors</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-5">Authors</a></h3>
 <ul class="simple">
 <li>Ledo</li>
 </ul>
 </div>
 <div class="section" id="maintainers">
-<h3><a class="toc-backref" href="#toc-entry-4">Maintainers</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-6">Maintainers</a></h3>
 <p>This module is maintained by the OCA.</p>
 <a class="reference external image-reference" href="https://odoo-community.org">
 <img alt="Odoo Community Association" src="https://odoo-community.org/logo.png" />

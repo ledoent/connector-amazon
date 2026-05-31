@@ -154,6 +154,16 @@ class TestFbaInventory(TransactionCase):
             self.backend.sync_fba_inventory()
         self.assertEqual(called, [], "disabled backend must be skipped")
 
+    def test_cron_enqueues_enabled_backend(self):
+        self.backend.amazon_fba_enabled = True
+        delayed = MagicMock()
+        with patch.object(
+            type(self.backend), "with_delay", return_value=delayed
+        ) as with_delay:
+            self.backend.sync_fba_inventory()
+        with_delay.assert_called_once()
+        delayed._pull_fba_inventory.assert_called_once_with()
+
     def test_pull_api_error_propagates(self):
         api = MagicMock()
         api.get_inventory_summary_marketplace.side_effect = SellingApiException(
