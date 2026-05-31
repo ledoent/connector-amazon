@@ -1,12 +1,13 @@
 {
     "name": "Amazon SP-API Connector: Buy Shipping",
-    "version": "19.0.1.0.0",
+    "version": "19.0.1.1.0",
     "category": "Sales/Sales",
     "summary": "Buy Amazon shipping labels for MFN orders via Merchant Fulfillment",
     "author": "Ledo, Odoo Community Association (OCA)",
     "website": "https://github.com/OCA/connector-amazon",
     "license": "AGPL-3",
     "depends": [
+        "connector_amazon_sale",
         "connector_amazon_stock",
     ],
     "data": [
