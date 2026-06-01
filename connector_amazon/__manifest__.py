@@ -1,6 +1,6 @@
 {
     "name": "Amazon SP-API Connector",
-    "version": "19.0.1.0.1",
+    "version": "19.0.1.1.0",
     "category": "Sales/Sales",
     "summary": "Base connector for Amazon Selling Partner API",
     "author": "Ledo, Odoo Community Association (OCA)",
@@ -9,7 +9,6 @@
     "depends": [
         "queue_job",
         "sale",
-        "delivery",
     ],
     "external_dependencies": {
         "python": ["python-amazon-sp-api"],
@@ -20,7 +19,6 @@
         "data/ir_cron.xml",
         "views/amz_backend_views.xml",
         "views/amz_order_views.xml",
-        "views/res_config_settings_views.xml",
     ],
     "maintainers": ["dnplkndll"],
     "development_status": "Beta",

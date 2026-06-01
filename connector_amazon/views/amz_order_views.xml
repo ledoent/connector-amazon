@@ -25,8 +25,8 @@
                 <sheet>
                     <div class="oe_button_box" name="button_box">
                         <button
-                            name="%(sale.action_quotations_with_onboarding)d"
-                            type="action"
+                            name="action_view_sale_order"
+                            type="object"
                             class="oe_stat_button"
                             icon="fa-file-text-o"
                             invisible="not sale_order_id"

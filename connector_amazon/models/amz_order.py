@@ -60,3 +60,14 @@ class AmazonOrder(models.Model):
         "UNIQUE(backend_id, amz_order_id)",
         "Amazon order ID must be unique per backend.",
     )
+
+    def action_view_sale_order(self):
+        """Open the Odoo sale order this Amazon order was mapped to."""
+        self.ensure_one()
+        return {
+            "type": "ir.actions.act_window",
+            "res_model": "sale.order",
+            "res_id": self.sale_order_id.id,
+            "view_mode": "form",
+            "target": "current",
+        }

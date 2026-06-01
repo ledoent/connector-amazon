@@ -1,6 +1,8 @@
 from unittest.mock import MagicMock, patch
 
+from odoo.exceptions import UserError
 from odoo.tests.common import TransactionCase
+from odoo.tools import mute_logger
 
 from .common import SANDBOX_GET_ORDERS_PAYLOAD
 
@@ -72,3 +74,57 @@ class TestAmazBackendGetApi(TransactionCase):
         mock_get_orders.assert_called_once()
         call_kwargs = mock_get_orders.call_args.kwargs
         self.assertEqual(call_kwargs["CreatedAfter"], "TEST_CASE_200")
+
+    @patch("sp_api.api.orders.orders_v0.OrdersV0.__init__", return_value=None)
+    @patch("sp_api.api.orders.orders_v0.OrdersV0.get_orders")
+    def test_action_test_connection_production_branch(
+        self, mock_get_orders, _mock_init
+    ):
+        """Non-sandbox uses a real CreatedAfter timestamp, not TEST_CASE_200."""
+        self.backend.sandbox = False
+        mock_response = MagicMock()
+        mock_response.payload = SANDBOX_GET_ORDERS_PAYLOAD
+        mock_get_orders.return_value = mock_response
+
+        result = self.backend.action_test_connection()
+        self.assertEqual(result["params"]["type"], "success")
+        created_after = mock_get_orders.call_args.kwargs["CreatedAfter"]
+        self.assertNotEqual(created_after, "TEST_CASE_200")
+        self.assertTrue(created_after.endswith("Z"))
+
+    @patch("sp_api.api.orders.orders_v0.OrdersV0.__init__", return_value=None)
+    @patch("sp_api.api.orders.orders_v0.OrdersV0.get_orders")
+    def test_action_test_connection_sp_api_error(self, mock_get_orders, _mock_init):
+        from sp_api.base import SellingApiException
+
+        mock_get_orders.side_effect = SellingApiException(
+            [{"code": "InvalidInput", "message": "bad creds"}], {}
+        )
+        with self.assertRaises(UserError):
+            self.backend.action_test_connection()
+
+    @patch("sp_api.api.orders.orders_v0.OrdersV0.__init__", return_value=None)
+    @patch("sp_api.api.orders.orders_v0.OrdersV0.get_orders")
+    def test_action_test_connection_generic_error(self, mock_get_orders, _mock_init):
+        mock_get_orders.side_effect = ValueError("boom")
+        with self.assertRaises(UserError):
+            self.backend.action_test_connection()
+
+    @mute_logger("odoo.addons.connector_amazon.models.amz_backend")
+    def test_import_orders_stub_is_noop(self):
+        """Core's import_orders stub must not raise (overridden by _sale)."""
+        self.backend.import_orders()
+
+    def test_action_view_sale_order(self):
+        partner = self.env["res.partner"].create({"name": "Amz Buyer"})
+        sale = self.env["sale.order"].create({"partner_id": partner.id})
+        order = self.env["amz.order"].create(
+            {
+                "backend_id": self.backend.id,
+                "amz_order_id": "TEST-1",
+                "sale_order_id": sale.id,
+            }
+        )
+        action = order.action_view_sale_order()
+        self.assertEqual(action["res_model"], "sale.order")
+        self.assertEqual(action["res_id"], sale.id)
