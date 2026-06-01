@@ -1,6 +1,6 @@
 {
     "name": "Amazon SP-API Connector: Real-Time Repricing",
-    "version": "19.0.1.0.1",
+    "version": "19.0.1.1.0",
     "summary": "Buy-box change feed via SQS → competitive repricing",
     "category": "Sales/Sales",
     "author": "Ledo, Odoo Community Association (OCA)",

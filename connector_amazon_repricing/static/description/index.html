@@ -406,17 +406,148 @@ permanently-malformed messages.</p>
 <p><strong>Table of contents</strong></p>
 <div class="contents local topic" id="contents">
 <ul class="simple">
-<li><a class="reference internal" href="#bug-tracker" id="toc-entry-1">Bug Tracker</a></li>
-<li><a class="reference internal" href="#credits" id="toc-entry-2">Credits</a><ul>
-<li><a class="reference internal" href="#authors" id="toc-entry-3">Authors</a></li>
-<li><a class="reference internal" href="#contributors" id="toc-entry-4">Contributors</a></li>
-<li><a class="reference internal" href="#maintainers" id="toc-entry-5">Maintainers</a></li>
+<li><a class="reference internal" href="#configuration" id="toc-entry-1">Configuration</a><ul>
+<li><a class="reference internal" href="#provision-the-sqs-queue-aws-side" id="toc-entry-2">1. Provision the SQS queue (AWS side)</a></li>
+<li><a class="reference internal" href="#backend-aws-credentials-odoo-side" id="toc-entry-3">2. Backend AWS credentials (Odoo side)</a></li>
+<li><a class="reference internal" href="#enable-the-polling-cron" id="toc-entry-4">3. Enable the polling cron</a></li>
+<li><a class="reference internal" href="#snapshot-retention" id="toc-entry-5">4. Snapshot retention</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#usage" id="toc-entry-6">Usage</a><ul>
+<li><a class="reference internal" href="#activate-real-time-repricing" id="toc-entry-7">Activate real-time repricing</a></li>
+<li><a class="reference internal" href="#how-repricing-runs" id="toc-entry-8">How repricing runs</a></li>
+<li><a class="reference internal" href="#buy-box-competitor-analytics" id="toc-entry-9">Buy-box / competitor analytics</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#bug-tracker" id="toc-entry-10">Bug Tracker</a></li>
+<li><a class="reference internal" href="#credits" id="toc-entry-11">Credits</a><ul>
+<li><a class="reference internal" href="#authors" id="toc-entry-12">Authors</a></li>
+<li><a class="reference internal" href="#contributors" id="toc-entry-13">Contributors</a></li>
+<li><a class="reference internal" href="#maintainers" id="toc-entry-14">Maintainers</a></li>
 </ul>
 </li>
 </ul>
 </div>
+<div class="section" id="configuration">
+<h2><a class="toc-backref" href="#toc-entry-1">Configuration</a></h2>
+<div class="section" id="provision-the-sqs-queue-aws-side">
+<h3><a class="toc-backref" href="#toc-entry-2">1. Provision the SQS queue (AWS side)</a></h3>
+<p>This module consumes Amazon’s <tt class="docutils literal">ANY_OFFER_CHANGED</tt> feed via an SQS
+queue you own. Odoo never creates the queue — provision it before
+configuring the backend.</p>
+<ol class="arabic simple">
+<li>In the AWS account, create a standard <strong>SQS queue</strong> in the region you
+will use (e.g. <tt class="docutils literal"><span class="pre">us-east-1</span></tt>).</li>
+<li>Attach the <strong>SP-API send policy</strong> to the queue so Amazon’s
+notification service can deliver to it. Amazon publishes from a fixed
+principal; grant <tt class="docutils literal">sqs:SendMessage</tt> to the SP-API service on this
+queue’s ARN (see the SP-API “Notifications” docs for the exact
+principal/condition).</li>
+<li>Create a <strong>dead-letter queue</strong> and a redrive policy with a
+<tt class="docutils literal">maxReceiveCount</tt> on the source queue. Messages that fail to parse
+are intentionally left on the queue (not deleted) so they retry;
+without a DLQ a permanently-malformed message would be redelivered
+forever.</li>
+<li>Create an <strong>IAM user</strong> (or role) with <tt class="docutils literal">sqs:GetQueueAttributes</tt>,
+<tt class="docutils literal">sqs:ReceiveMessage</tt> and <tt class="docutils literal">sqs:DeleteMessage</tt> on this queue, and
+generate an access key / secret for it.</li>
+</ol>
+</div>
+<div class="section" id="backend-aws-credentials-odoo-side">
+<h3><a class="toc-backref" href="#toc-entry-3">2. Backend AWS credentials (Odoo side)</a></h3>
+<p>In <strong>Amazon → Pricing → (your backend) → Real-Time Repricing (SQS)</strong>:</p>
+<ul class="simple">
+<li><strong>AWS Access Key ID</strong> / <strong>AWS Secret Access Key</strong> — the IAM user’s key
+pair (stored masked in the form).</li>
+<li><strong>AWS Region</strong> — the queue’s region (default <tt class="docutils literal"><span class="pre">us-east-1</span></tt>).</li>
+<li><strong>SQS Queue URL</strong> — the full queue URL from the SQS console. The queue
+ARN is derived from this automatically during <strong>Setup Notifications</strong>.</li>
+<li><strong>Real-Time Repricing</strong> — master on/off switch for this backend.</li>
+</ul>
+<p><tt class="docutils literal">boto3</tt> must be installed on the Odoo server (<tt class="docutils literal">pip install boto3</tt>);
+the Setup and poll actions raise a clear error if it is missing.</p>
+</div>
+<div class="section" id="enable-the-polling-cron">
+<h3><a class="toc-backref" href="#toc-entry-4">3. Enable the polling cron</a></h3>
+<p>The scheduled action <strong>Amazon: Poll Offer Notifications (SQS)</strong>
+(<tt class="docutils literal">ir_cron_amz_poll_offer_notifications</tt>) ships <strong>disabled</strong> because it
+makes live AWS/SP-API calls. To enable:</p>
+<ol class="arabic simple">
+<li><strong>Settings → Technical → Automation → Scheduled Actions</strong>.</li>
+<li>Open <strong>Amazon: Poll Offer Notifications (SQS)</strong>, set it active
+(default every 5 minutes).</li>
+<li>It only drains backends where <strong>Real-Time Repricing</strong> is on and an
+SQS Queue URL is set.</li>
+</ol>
+<p>Repricing on each notification additionally requires <strong>Auto Price Push</strong>
+(Pricing module) and <strong>Competitive</strong> pricing mode; otherwise
+notifications only refresh buy-box data and snapshots without pushing a
+new price.</p>
+</div>
+<div class="section" id="snapshot-retention">
+<h3><a class="toc-backref" href="#toc-entry-5">4. Snapshot retention</a></h3>
+<p><tt class="docutils literal">amz.offer.snapshot</tt> is append-only and high-volume on popular ASINs.
+Add an autovacuum / cleanup scheduled action that deletes rows older
+than your retention window (filter on <tt class="docutils literal">date</tt>) so the table does not
+grow unbounded.</p>
+</div>
+</div>
+<div class="section" id="usage">
+<h2><a class="toc-backref" href="#toc-entry-6">Usage</a></h2>
+<p>This guide assumes AWS/SQS and the backend are configured (see
+CONFIGURE).</p>
+<div class="section" id="activate-real-time-repricing">
+<h3><a class="toc-backref" href="#toc-entry-7">Activate real-time repricing</a></h3>
+<ol class="arabic simple">
+<li>Open <strong>Amazon → Pricing → (your backend)</strong> and go to the <strong>Real-Time
+Repricing (SQS)</strong> section.</li>
+<li>Tick <strong>Real-Time Repricing</strong> and confirm the four AWS fields are
+filled (Access Key ID, Secret Access Key, Region, SQS Queue URL).</li>
+<li>Click <strong>Setup Notifications</strong> in the form header (the button only
+appears once an Access Key ID and an SQS Queue URL are present).
+This:<ul>
+<li>reads the queue ARN from your SQS URL,</li>
+<li>registers an SP-API destination named <tt class="docutils literal"><span class="pre">odoo-repricing-&lt;backend&gt;</span></tt>,</li>
+<li>subscribes the <tt class="docutils literal">ANY_OFFER_CHANGED</tt> notification to it. A
+“Notifications Active” message confirms success; first messages
+arrive within ~5 minutes.</li>
+</ul>
+</li>
+</ol>
+</div>
+<div class="section" id="how-repricing-runs">
+<h3><a class="toc-backref" href="#toc-entry-8">How repricing runs</a></h3>
+<ol class="arabic simple">
+<li>The scheduled action <strong>Amazon: Poll Offer Notifications (SQS)</strong>
+drains the queue every 5 minutes (see CONFIGURE to enable it).</li>
+<li>For each <tt class="docutils literal">ANY_OFFER_CHANGED</tt> message, the matching listing’s
+<strong>buy-box price</strong>, <strong>buy-box winner</strong> and <strong>pull timestamp</strong> are
+updated, and one <strong>Competitor Offer</strong> snapshot per offer is recorded.</li>
+<li>If the backend has <strong>Auto Price Push</strong> enabled (from the Pricing
+module) <em>and</em> is in <strong>Competitive</strong> pricing mode, the listing is
+repriced: a new target is computed from the competitive rule and, if
+it differs from the current price, PATCHed to Amazon. Each such
+change is logged to Price History with the <strong>Offer Notification</strong>
+trigger.</li>
+</ol>
+</div>
+<div class="section" id="buy-box-competitor-analytics">
+<h3><a class="toc-backref" href="#toc-entry-9">Buy-box / competitor analytics</a></h3>
+<ol class="arabic simple">
+<li>Open <strong>Amazon → Pricing → Competitor Offers</strong>
+(<tt class="docutils literal">amz.offer.snapshot</tt>).</li>
+<li>Each row is one offer seen on an ASIN: seller, price, “Our Offer”,
+“Buy Box Winner”. Your offers are bold; buy-box-winning rows are
+highlighted green.</li>
+<li>Filter by <strong>Our Offers</strong> / <strong>Buy Box Winner</strong>, or group by
+<strong>Listing</strong> / <strong>Seller</strong>, to compute buy-box win-rate over time.</li>
+<li>This table is append-only and grows fast on busy ASINs — schedule a
+cleanup (see CONFIGURE).</li>
+</ol>
+</div>
+</div>
 <div class="section" id="bug-tracker">
-<h2><a class="toc-backref" href="#toc-entry-1">Bug Tracker</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-10">Bug Tracker</a></h2>
 <p>Bugs are tracked on <a class="reference external" href="https://github.com/OCA/connector-amazon/issues">GitHub Issues</a>.
 In case of trouble, please check there if your issue has already been reported.
 If you spotted it first, help us to smash it by providing a detailed and welcomed
@@ -424,21 +555,21 @@ If you spotted it first, help us to smash it by providing a detailed and welcome
 <p>Do not contact contributors directly about support or help with technical issues.</p>
 </div>
 <div class="section" id="credits">
-<h2><a class="toc-backref" href="#toc-entry-2">Credits</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-11">Credits</a></h2>
 <div class="section" id="authors">
-<h3><a class="toc-backref" href="#toc-entry-3">Authors</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-12">Authors</a></h3>
 <ul class="simple">
 <li>Ledo</li>
 </ul>
 </div>
 <div class="section" id="contributors">
-<h3><a class="toc-backref" href="#toc-entry-4">Contributors</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-13">Contributors</a></h3>
 <ul class="simple">
 <li>Don Kendall &lt;<a class="reference external" href="mailto:dkendall&#64;ledoweb.com">dkendall&#64;ledoweb.com</a>&gt;</li>
 </ul>
 </div>
 <div class="section" id="maintainers">
-<h3><a class="toc-backref" href="#toc-entry-5">Maintainers</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-14">Maintainers</a></h3>
 <p>This module is maintained by the OCA.</p>
 <a class="reference external image-reference" href="https://odoo-community.org">
 <img alt="Odoo Community Association" src="https://odoo-community.org/logo.png" />
