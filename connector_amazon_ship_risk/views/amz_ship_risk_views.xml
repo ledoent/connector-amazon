@@ -145,7 +145,7 @@
         <field name="model">amz.backend</field>
         <field name="inherit_id" ref="connector_amazon.view_amz_backend_form" />
         <field name="arch" type="xml">
-            <xpath expr="//chatter" position="before">
+            <xpath expr="//group[@name='import_settings']" position="after">
                 <group string="Shipping Risk">
                     <field name="ship_risk_threshold_hours" />
                     <field name="ship_risk_calendar_id" />
