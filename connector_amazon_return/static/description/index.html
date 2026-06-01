@@ -403,16 +403,165 @@ this module.</p>
 <p><strong>Table of contents</strong></p>
 <div class="contents local topic" id="contents">
 <ul class="simple">
-<li><a class="reference internal" href="#bug-tracker" id="toc-entry-1">Bug Tracker</a></li>
-<li><a class="reference internal" href="#credits" id="toc-entry-2">Credits</a><ul>
-<li><a class="reference internal" href="#authors" id="toc-entry-3">Authors</a></li>
-<li><a class="reference internal" href="#maintainers" id="toc-entry-4">Maintainers</a></li>
+<li><a class="reference internal" href="#configuration" id="toc-entry-1">Configuration</a><ul>
+<li><a class="reference internal" href="#backend-toggles" id="toc-entry-2">Backend toggles</a></li>
+<li><a class="reference internal" href="#scheduled-sync" id="toc-entry-3">Scheduled sync</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#usage" id="toc-entry-4">Usage</a><ul>
+<li><a class="reference internal" href="#enabling-returns" id="toc-entry-5">Enabling returns</a></li>
+<li><a class="reference internal" href="#how-a-return-is-pulled" id="toc-entry-6">How a return is pulled</a></li>
+<li><a class="reference internal" href="#reading-returns" id="toc-entry-7">Reading returns</a></li>
+<li><a class="reference internal" href="#self-healing" id="toc-entry-8">Self-healing</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#bug-tracker" id="toc-entry-9">Bug Tracker</a></li>
+<li><a class="reference internal" href="#credits" id="toc-entry-10">Credits</a><ul>
+<li><a class="reference internal" href="#authors" id="toc-entry-11">Authors</a></li>
+<li><a class="reference internal" href="#maintainers" id="toc-entry-12">Maintainers</a></li>
 </ul>
 </li>
 </ul>
 </div>
+<div class="section" id="configuration">
+<h2><a class="toc-backref" href="#toc-entry-1">Configuration</a></h2>
+<div class="section" id="backend-toggles">
+<h3><a class="toc-backref" href="#toc-entry-2">Backend toggles</a></h3>
+<p>All three returns toggles live in the <strong>Returns</strong> group on the backend
+form and ship <strong>off</strong> by default:</p>
+<table border="1" class="docutils">
+<colgroup>
+<col width="33%" />
+<col width="33%" />
+<col width="33%" />
+</colgroup>
+<thead valign="bottom">
+<tr><th class="head">Toggle</th>
+<th class="head">Effect</th>
+<th class="head">Requirements</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr><td><strong>Sync Returns</strong></td>
+<td>Includes this
+backend in the
+returns cron.</td>
+<td>Marketplace ID set
+on the backend.</td>
+</tr>
+<tr><td><strong>Auto Restock
+Returns</strong></td>
+<td>Creates an
+<em>un-validated</em>
+restock receipt
+(customer → stock)
+per return for the
+stockable returned
+products. The
+warehouse validates
+it on physical
+receipt.</td>
+<td>The backend’s
+<strong>Warehouse</strong> must
+have an incoming
+operation type
+(<tt class="docutils literal">in_type_id</tt>);
+the receipt lands in
+that type’s default
+destination, falling
+back to the
+warehouse stock
+location. Phase 1
+books a plain
+incoming receipt —
+it is <strong>not</strong>
+chained to the
+original delivery.</td>
+</tr>
+<tr><td><strong>Auto Credit Note</strong></td>
+<td>Creates and posts a
+credit note
+(<tt class="docutils literal">out_refund</tt>) for
+the returned lines.</td>
+<td>The originating
+Amazon order must
+have a linked sale
+order with a
+<strong>posted customer
+invoice</strong>. Accounts,
+taxes, unit price
+and the journal are
+copied from that
+invoice; returned
+products not on the
+invoice are logged
+and skipped.</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="section" id="scheduled-sync">
+<h3><a class="toc-backref" href="#toc-entry-3">Scheduled sync</a></h3>
+<p>The <em>Amazon: Sync Returns</em> scheduled action ships <strong>disabled</strong> (it calls
+the Reports API). Enable it under <strong>Settings → Technical → Scheduled
+Actions</strong>; it runs every 12 hours and only pulls backends with <strong>Sync
+Returns</strong> ticked.</p>
+</div>
+</div>
+<div class="section" id="usage">
+<h2><a class="toc-backref" href="#toc-entry-4">Usage</a></h2>
+<div class="section" id="enabling-returns">
+<h3><a class="toc-backref" href="#toc-entry-5">Enabling returns</a></h3>
+<ol class="arabic simple">
+<li>On a backend (<strong>Amazon → Configuration → Backends</strong>), open the
+<strong>Returns</strong> group and tick <strong>Sync Returns</strong> to include this backend
+in the returns cron. (The per-backend toggle is separate from the
+cron’s own enable switch.)</li>
+<li>Optionally tick <strong>Auto Restock Returns</strong> and <strong>Auto Credit Note</strong> to
+automate the downstream (see CONFIGURE for what each does and what it
+needs).</li>
+<li>Enable the <em>Amazon: Sync Returns</em> scheduled action to pull every 12
+hours, or click <strong>Sync Returns</strong> on the backend form to pull on
+demand.</li>
+</ol>
+</div>
+<div class="section" id="how-a-return-is-pulled">
+<h3><a class="toc-backref" href="#toc-entry-6">How a return is pulled</a></h3>
+<p>Returns are fetched <strong>asynchronously</strong> via Amazon’s Reports API
+(<tt class="docutils literal">GET_XML_RETURNS_DATA_BY_RETURN_DATE</tt>). One cron pass requests a
+report for the window since the last sync (clamped to Amazon’s 60-day
+max); a later pass fetches and parses it once Amazon marks the report
+<strong>DONE</strong>. No worker blocks waiting. Report requests are tracked as
+<strong>amz.return.report</strong> records (Requested → Done → Parsed, or Error on
+FATAL/CANCELLED).</p>
+</div>
+<div class="section" id="reading-returns">
+<h3><a class="toc-backref" href="#toc-entry-7">Reading returns</a></h3>
+<p>Each return becomes an <strong>amz.return</strong> at <strong>Amazon → Sales → Returns</strong>,
+grouped by RMA, with per-item lines (SKU, ASIN, quantity, reason). Open
+one to see:</p>
+<ul class="simple">
+<li><strong>Order</strong> — the originating Amazon order, when matched.</li>
+<li><strong>Return Picking</strong> — the restock receipt, if auto-restock is on.</li>
+<li><strong>Credit Note</strong> — the posted <tt class="docutils literal">out_refund</tt>, if auto-credit-note is
+on.</li>
+<li><strong>Refund Event</strong> — the settlement refund line, if the Settlements
+connector captured one for the same order.</li>
+</ul>
+<p>The <strong>Status</strong> column tracks New → Picking Created / Credited → Done.
+Use the <strong>New</strong> / <strong>Credited</strong> filters and the <strong>Status</strong> group-by to
+triage.</p>
+</div>
+<div class="section" id="self-healing">
+<h3><a class="toc-backref" href="#toc-entry-8">Self-healing</a></h3>
+<p>Re-ingesting the same RMA never duplicates the return, but it <strong>does</strong>
+create any enabled-but-missing downstream artifact — so a return first
+ingested before its invoice was posted gets its credit note on the next
+sync once the invoice exists.</p>
+</div>
+</div>
 <div class="section" id="bug-tracker">
-<h2><a class="toc-backref" href="#toc-entry-1">Bug Tracker</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-9">Bug Tracker</a></h2>
 <p>Bugs are tracked on <a class="reference external" href="https://github.com/OCA/connector-amazon/issues">GitHub Issues</a>.
 In case of trouble, please check there if your issue has already been reported.
 If you spotted it first, help us to smash it by providing a detailed and welcomed
@@ -420,15 +569,15 @@ If you spotted it first, help us to smash it by providing a detailed and welcome
 <p>Do not contact contributors directly about support or help with technical issues.</p>
 </div>
 <div class="section" id="credits">
-<h2><a class="toc-backref" href="#toc-entry-2">Credits</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-10">Credits</a></h2>
 <div class="section" id="authors">
-<h3><a class="toc-backref" href="#toc-entry-3">Authors</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-11">Authors</a></h3>
 <ul class="simple">
 <li>Ledo</li>
 </ul>
 </div>
 <div class="section" id="maintainers">
-<h3><a class="toc-backref" href="#toc-entry-4">Maintainers</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-12">Maintainers</a></h3>
 <p>This module is maintained by the OCA.</p>
 <a class="reference external image-reference" href="https://odoo-community.org">
 <img alt="Odoo Community Association" src="https://odoo-community.org/logo.png" />
