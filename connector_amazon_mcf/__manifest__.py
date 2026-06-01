@@ -1,6 +1,6 @@
 {
     "name": "Amazon SP-API Connector: Multi-Channel Fulfillment",
-    "version": "19.0.1.0.0",
+    "version": "19.0.1.1.0",
     "category": "Sales/Sales",
     "summary": "Fulfill non-Amazon orders from FBA stock via Multi-Channel Fulfillment",
     "author": "Ledo, Odoo Community Association (OCA)",
