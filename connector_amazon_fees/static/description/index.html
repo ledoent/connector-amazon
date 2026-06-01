@@ -395,25 +395,61 @@ the buy-box price), via a manual <strong>Sync Fees</strong> button or a daily cr
 <p><strong>Table of contents</strong></p>
 <div class="contents local topic" id="contents">
 <ul class="simple">
-<li><a class="reference internal" href="#usage" id="toc-entry-1">Usage</a><ul>
-<li><a class="reference internal" href="#estimating-fees" id="toc-entry-2">Estimating fees</a></li>
-<li><a class="reference internal" href="#reading-the-numbers" id="toc-entry-3">Reading the numbers</a></li>
-<li><a class="reference internal" href="#fee-aware-repricing" id="toc-entry-4">Fee-aware repricing</a></li>
+<li><a class="reference internal" href="#configuration" id="toc-entry-1">Configuration</a><ul>
+<li><a class="reference internal" href="#margin-target" id="toc-entry-2">Margin target</a></li>
+<li><a class="reference internal" href="#per-listing-fba-toggle" id="toc-entry-3">Per-listing FBA toggle</a></li>
+<li><a class="reference internal" href="#scheduled-sync" id="toc-entry-4">Scheduled sync</a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#bug-tracker" id="toc-entry-5">Bug Tracker</a></li>
-<li><a class="reference internal" href="#credits" id="toc-entry-6">Credits</a><ul>
-<li><a class="reference internal" href="#authors" id="toc-entry-7">Authors</a></li>
-<li><a class="reference internal" href="#contributors" id="toc-entry-8">Contributors</a></li>
-<li><a class="reference internal" href="#maintainers" id="toc-entry-9">Maintainers</a></li>
+<li><a class="reference internal" href="#usage" id="toc-entry-5">Usage</a><ul>
+<li><a class="reference internal" href="#estimating-fees" id="toc-entry-6">Estimating fees</a></li>
+<li><a class="reference internal" href="#reading-the-numbers" id="toc-entry-7">Reading the numbers</a></li>
+<li><a class="reference internal" href="#fee-aware-repricing" id="toc-entry-8">Fee-aware repricing</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#bug-tracker" id="toc-entry-9">Bug Tracker</a></li>
+<li><a class="reference internal" href="#credits" id="toc-entry-10">Credits</a><ul>
+<li><a class="reference internal" href="#authors" id="toc-entry-11">Authors</a></li>
+<li><a class="reference internal" href="#contributors" id="toc-entry-12">Contributors</a></li>
+<li><a class="reference internal" href="#maintainers" id="toc-entry-13">Maintainers</a></li>
 </ul>
 </li>
 </ul>
 </div>
+<div class="section" id="configuration">
+<h2><a class="toc-backref" href="#toc-entry-1">Configuration</a></h2>
+<div class="section" id="margin-target">
+<h3><a class="toc-backref" href="#toc-entry-2">Margin target</a></h3>
+<p>The fee-aware floor reuses the <strong>Floor Margin %</strong> field configured for
+competitive pricing (<strong>Amazon → Configuration → Backends → Pricing</strong>,
+field <tt class="docutils literal">competitive_floor_margin_pct</tt>). With this module installed,
+that percentage is interpreted as the <strong>net</strong> margin target the price
+must clear <em>after</em> Amazon’s real referral and fulfillment fees — not
+just <tt class="docutils literal">cost + margin%</tt>. Set it once; both the “Below Target Margin”
+flag and the repricing floor honor it.</p>
+</div>
+<div class="section" id="per-listing-fba-toggle">
+<h3><a class="toc-backref" href="#toc-entry-3">Per-listing FBA toggle</a></h3>
+<p>Each listing has an <strong>FBA</strong> checkbox (<strong>Fees &amp; Margin</strong> group on the
+listing form). Tick it for Fulfilled-by-Amazon SKUs so the
+<tt class="docutils literal">GetMyFeesEstimate</tt> request includes FBA fulfillment fees; leave it
+off for merchant-fulfilled SKUs (the estimate then omits FBA fees). The
+flag is forwarded to Amazon as <tt class="docutils literal">is_amazon_fulfilled</tt>.</p>
+</div>
+<div class="section" id="scheduled-sync">
+<h3><a class="toc-backref" href="#toc-entry-4">Scheduled sync</a></h3>
+<p>The <em>Amazon: Sync Fees</em> scheduled action ships <strong>disabled</strong> (it calls
+<tt class="docutils literal">GetMyFeesEstimate</tt> per SKU). Enable it under <strong>Settings → Technical →
+Scheduled Actions</strong> to refresh estimates daily, or use the <strong>Sync Fees</strong>
+button on the backend for an on-demand pull. Estimates are computed at
+each listing’s current list price, falling back to the buy-box price;
+priceless listings are skipped.</p>
+</div>
+</div>
 <div class="section" id="usage">
-<h2><a class="toc-backref" href="#toc-entry-1">Usage</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-5">Usage</a></h2>
 <div class="section" id="estimating-fees">
-<h3><a class="toc-backref" href="#toc-entry-2">Estimating fees</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-6">Estimating fees</a></h3>
 <ol class="arabic simple">
 <li>On a backend (<strong>Amazon → Configuration → Backends</strong>), click <strong>Sync
 Fees</strong>, or enable the <em>Amazon: Sync Fees</em> scheduled action to refresh
@@ -428,14 +464,14 @@ fees; leave it off for merchant-fulfilled SKUs.</li>
 </ol>
 </div>
 <div class="section" id="reading-the-numbers">
-<h3><a class="toc-backref" href="#toc-entry-3">Reading the numbers</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-7">Reading the numbers</a></h3>
 <p>Listings show <strong>Total Fees</strong> and <strong>Est. Margin %</strong> columns; the <strong>Below
 Target Margin</strong> filter surfaces SKUs whose net margin is under the
 backend’s floor margin. The dashboard rolls these up into <em>Avg Margin</em>
 and a <em>Below Target Margin</em> count.</p>
 </div>
 <div class="section" id="fee-aware-repricing">
-<h3><a class="toc-backref" href="#toc-entry-4">Fee-aware repricing</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-8">Fee-aware repricing</a></h3>
 <p>When this module is installed, the competitive repricing floor in
 <tt class="docutils literal">connector_amazon_pricing</tt> becomes fee-aware: instead of
 <tt class="docutils literal">cost + margin%</tt>, it solves for the price whose net margin clears the
@@ -446,7 +482,7 @@ current.</p>
 </div>
 </div>
 <div class="section" id="bug-tracker">
-<h2><a class="toc-backref" href="#toc-entry-5">Bug Tracker</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-9">Bug Tracker</a></h2>
 <p>Bugs are tracked on <a class="reference external" href="https://github.com/OCA/connector-amazon/issues">GitHub Issues</a>.
 In case of trouble, please check there if your issue has already been reported.
 If you spotted it first, help us to smash it by providing a detailed and welcomed
@@ -454,21 +490,21 @@ If you spotted it first, help us to smash it by providing a detailed and welcome
 <p>Do not contact contributors directly about support or help with technical issues.</p>
 </div>
 <div class="section" id="credits">
-<h2><a class="toc-backref" href="#toc-entry-6">Credits</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-10">Credits</a></h2>
 <div class="section" id="authors">
-<h3><a class="toc-backref" href="#toc-entry-7">Authors</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-11">Authors</a></h3>
 <ul class="simple">
 <li>Ledo</li>
 </ul>
 </div>
 <div class="section" id="contributors">
-<h3><a class="toc-backref" href="#toc-entry-8">Contributors</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-12">Contributors</a></h3>
 <ul class="simple">
 <li>Ledo <a class="reference external" href="https://github.com/ledoent">https://github.com/ledoent</a></li>
 </ul>
 </div>
 <div class="section" id="maintainers">
-<h3><a class="toc-backref" href="#toc-entry-9">Maintainers</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-13">Maintainers</a></h3>
 <p>This module is maintained by the OCA.</p>
 <a class="reference external image-reference" href="https://odoo-community.org">
 <img alt="Odoo Community Association" src="https://odoo-community.org/logo.png" />

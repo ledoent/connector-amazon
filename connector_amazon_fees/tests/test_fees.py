@@ -131,3 +131,39 @@ class TestFees(TransactionCase):
         self.assertEqual(updated, 1)
         self.assertEqual(no_price.fee_basis_price, 0.0)
         self.assertFalse(no_price.last_fee_sync_date)
+        # A listing with no fee basis can never trip the below-target flag.
+        self.assertFalse(no_price.below_target_margin)
+
+    def test_fee_aware_floor_unsolvable_returns_super_target(self):
+        """When referral% + margin% >= 1 the floor equation has no positive
+        solution; the floor is skipped and super()'s target is returned as-is
+        rather than dividing by a non-positive denominator."""
+        self._mock_sync()
+        # referral% = 0.15; pick a margin target that pushes denom <= 0.
+        self.backend.competitive_floor_margin_pct = 90.0  # 0.15 + 0.90 > 1
+        self.assertIsNone(self.backend._fee_aware_floor(self.listing))
+        # super()'s target at 90% is its own cost-plus floor: 10 * 1.90 = 19.0
+        # (above the 15 buy box). The unsolvable fee-aware floor must not alter
+        # it — _compute_competitive_price returns super()'s value untouched.
+        target = self.backend._compute_competitive_price(self.listing)
+        self.assertAlmostEqual(target, 19.0)
+
+    def test_fee_aware_floor_skipped_when_cost_zero(self):
+        """A product with no standard_price yields no fee-aware floor."""
+        self._mock_sync()
+        self.product.standard_price = 0.0
+        self.listing.invalidate_recordset()
+        self.assertIsNone(self.backend._fee_aware_floor(self.listing))
+        # super()'s target is returned unchanged (buy-box price).
+        target = self.backend._compute_competitive_price(self.listing)
+        self.assertAlmostEqual(target, 15.0)
+
+    def test_compute_competitive_price_passes_through_none(self):
+        """When the pricing layer's super() returns None (no competitive
+        target — e.g. no buy-box price), the fee override returns None too,
+        never a bare fee-aware floor."""
+        self._mock_sync()
+        # Pricing's super() returns None when there is no buy-box price.
+        self.listing.buy_box_price = 0.0
+        self.listing.invalidate_recordset()
+        self.assertIsNone(self.backend._compute_competitive_price(self.listing))
