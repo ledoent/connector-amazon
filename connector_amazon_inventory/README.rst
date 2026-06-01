@@ -38,10 +38,12 @@ stock quantities to Amazon via the Listings Items API.
 On each sync cycle (default every 15 minutes):
 
 1. For each active ``amz.listing`` with ``inventory_sync_enabled``,
-   compute the available quantity from ``stock.quant`` records at the
-   configured locations.
-2. Apply backend-level rules: multiply by ``inventory_expose_ratio`` and
-   subtract ``inventory_min_reserve``. Result is clamped to 0.
+   compute the free quantity from ``stock.quant`` records at the
+   configured locations, where free already nets out each quant's
+   ``reserved_quantity``.
+2. Apply backend-level rules: take the floor of free ×
+   ``inventory_expose_ratio``, then subtract ``inventory_min_reserve``.
+   Result is clamped to 0.
 3. If the computed quantity differs from the last pushed value, send a
    ``PATCH /listings/.../fulfillment_availability`` request to Amazon.
 4. Record ``last_pushed_qty`` and ``last_inventory_push_date`` on the
@@ -54,6 +56,96 @@ individual SKUs (e.g. pre-orders or bundles handled outside Odoo).
 
 .. contents::
    :local:
+
+Configuration
+=============
+
+Backend inventory settings
+--------------------------
+
+In **Amazon → Pricing → (your backend) → Inventory Sync**:
+
+- **Inventory Sync** — master switch for this backend (off by default).
+  Enables the **Push Inventory** button and includes the backend in the
+  scheduled push.
+- **Fulfillment Locations** — the internal stock locations counted
+  toward the Amazon FBM quantity. Leave empty to use the warehouse's
+  default stock location (``warehouse_id.lot_stock_id``).
+- **Expose Ratio** — fraction of free stock to expose to Amazon,
+  ``0.0``–``1.0`` (validated). E.g. ``0.5`` exposes half. Default
+  ``1.0``.
+- **Min Reserve** — units always held back regardless of ratio
+  (validated ≥ 0). Default ``0``.
+
+The pushed quantity per SKU is:
+
+::
+
+   free_qty = Σ over the configured locations of max(0, on_hand − reserved)
+   pushed   = max(0, floor(free_qty × Expose Ratio) − Min Reserve)
+
+``free_qty`` already nets out reserved stock; the result is floored to a
+whole unit, then Min Reserve is subtracted, then clamped to 0. **Amazon
+Seller ID** (Pricing section) is required for any push.
+
+Per-listing override
+--------------------
+
+Each listing has its own **Sync Inventory** flag (on by default).
+Unchecking it excludes that SKU from both the manual button and the cron
+— useful for pre-orders, bundles, or SKUs fulfilled outside Odoo.
+
+Scheduled action
+----------------
+
+The cron **Amazon: Push Inventory** (``ir_cron_amz_push_inventory``)
+ships **disabled** (makes live SP-API calls). Enable it under **Settings
+→ Technical → Automation → Scheduled Actions** (default every 15
+minutes). It acts only on backends with **Inventory Sync** on.
+
+Usage
+=====
+
+This guide assumes the backend and listings are already set up via
+``connector_amazon_pricing`` (see that module's USAGE), and that this
+module's backend settings are configured (see CONFIGURE).
+
+Enable inventory sync on a listing
+----------------------------------
+
+1. Open **Amazon → Pricing → Listings** and pick a listing.
+2. On the form, under **Inventory**, tick **Sync Inventory** (on by
+   default for new listings). Untick it for SKUs whose Amazon stock you
+   manage elsewhere (pre-orders, bundles, FBA-only items).
+3. The same flag, plus **Last Pushed Qty** and **Last Inventory Push**
+   date, also appear as optional columns on the backend's Listings tab.
+
+Push stock to Amazon
+--------------------
+
+1. On the backend form, confirm **Inventory Sync** is enabled and the
+   **Amazon Seller ID** (Pricing section) is set — the push errors
+   without it.
+2. Click **Push Inventory** in the form header (shown only when
+   **Inventory Sync** is on). This queues a job that, for every active
+   listing with **Sync Inventory** on:
+
+   - computes the FBM quantity (see CONFIGURE for the formula),
+   - skips listings whose quantity is unchanged since the last push,
+   - PATCHes ``fulfillment_availability`` to Amazon for the rest,
+   - records **Last Pushed Qty** and **Last Inventory Push** on the
+     listing.
+
+3. A stock-out is pushed too: when a previously-nonzero SKU drops to 0,
+   a ``quantity: 0`` update is sent so Amazon stops offering it.
+
+Automatic inventory sync
+------------------------
+
+1. Enable **Inventory Sync** on the backend.
+2. Enable the **Amazon: Push Inventory** scheduled action (ships
+   disabled — see CONFIGURE). It runs every 15 minutes across all
+   backends with Inventory Sync on.
 
 Bug Tracker
 ===========

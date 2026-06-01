@@ -1,6 +1,6 @@
 {
     "name": "Amazon SP-API Connector: Inventory",
-    "version": "19.0.1.0.0",
+    "version": "19.0.1.1.0",
     "category": "Inventory/Inventory",
     "summary": "Push FBM stock quantities to Amazon listings via SP-API",
     "author": "Ledo, Odoo Community Association (OCA)",

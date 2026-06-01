@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock, patch
 
+from odoo.exceptions import UserError, ValidationError
 from odoo.tests.common import TransactionCase
 from odoo.tools import mute_logger
 
@@ -248,3 +249,62 @@ class TestInventory(TransactionCase):
             0
         ]["value"][0]["quantity"]
         self.assertEqual(qty_sent, 0)
+
+    # ── _compute_amazon_qty edge cases ───────────────────────────────────────
+
+    def test_compute_qty_floors_non_integer_result(self):
+        """An odd free qty × ratio is floored to a whole unit (50.5 → 50)."""
+        self._clear_quants()
+        self._create_quant(101)
+        self.backend.inventory_expose_ratio = 0.5
+        qty = self.backend._compute_amazon_qty(self.product)
+        self.assertEqual(qty, 50)
+        self.backend.inventory_expose_ratio = 1.0
+
+    def test_compute_qty_nets_reserved_across_multiple_quants(self):
+        """free_qty sums per-quant max(0, on_hand - reserved) over all quants."""
+        self._clear_quants()
+        self._create_quant(40, reserved=10)  # contributes 30
+        self._create_quant(25, reserved=5)  # contributes 20
+        qty = self.backend._compute_amazon_qty(self.product)
+        self.assertEqual(qty, 50)
+
+    def test_compute_qty_clamps_per_quant_when_reserved_exceeds_on_hand(self):
+        """A quant with reserved > on_hand contributes 0, not a negative number."""
+        self._clear_quants()
+        self._create_quant(10, reserved=15)  # contributes 0, not -5
+        self._create_quant(30, reserved=0)  # contributes 30
+        qty = self.backend._compute_amazon_qty(self.product)
+        self.assertEqual(qty, 30)
+
+    # ── @api.constrains validators ───────────────────────────────────────────
+
+    def test_expose_ratio_above_one_is_rejected(self):
+        with self.assertRaises(ValidationError):
+            self.backend.inventory_expose_ratio = 1.5
+
+    def test_expose_ratio_below_zero_is_rejected(self):
+        with self.assertRaises(ValidationError):
+            self.backend.inventory_expose_ratio = -0.1
+
+    def test_negative_min_reserve_is_rejected(self):
+        with self.assertRaises(ValidationError):
+            self.backend.inventory_min_reserve = -1
+
+    # ── action_push_inventory / push_inventory (cron) ────────────────────────
+
+    def test_action_push_inventory_requires_seller_id(self):
+        self.backend.seller_id = False
+        with self.assertRaises(UserError):
+            self.backend.action_push_inventory()
+
+    def test_action_push_inventory_enqueues_job(self):
+        with patch.object(type(self.backend), "with_delay") as mock_delay:
+            self.backend.action_push_inventory()
+            mock_delay.assert_called_once()
+
+    def test_push_inventory_cron_enqueues_for_enabled_backend(self):
+        """The cron enqueues a push job for a backend with sync enabled."""
+        with patch.object(type(self.backend), "with_delay") as mock_delay:
+            self.backend.push_inventory()
+            mock_delay.assert_called_once()
