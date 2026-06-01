@@ -8,8 +8,8 @@ _logger = logging.getLogger(__name__)
 class StockPicking(models.Model):
     _inherit = "stock.picking"
 
-    def _action_done(self):
-        res = super()._action_done()
+    def _action_done(self, *args, **kwargs):
+        res = super()._action_done(*args, **kwargs)
         self._enqueue_amazon_tracking_push()
         return res
 

@@ -174,3 +174,35 @@ class TestConfirmShipment(TransactionCase):
         self.backend._confirm_shipment(AMZ_ORDER_ID, picking.id)
         pkg = api_instance.confirm_shipment.call_args.kwargs["payload"]["packageDetail"]
         self.assertEqual(pkg["carrierCode"], "Other")
+
+    @patch("sp_api.api.Orders")
+    def test_confirm_shipment_reraises_sp_api_error(self, mock_orders_class):
+        """A SellingApiException is logged and re-raised so queue_job records it."""
+        import datetime
+
+        from sp_api.base import SellingApiException
+
+        api_instance = MagicMock()
+        mock_orders_class.return_value = api_instance
+        api_instance.confirm_shipment.side_effect = SellingApiException(
+            [{"code": "QuotaExceeded", "message": "throttled"}], {}
+        )
+        picking = self._make_picking(tracking_ref="1Z-RETRY")
+        picking.date_done = datetime.datetime(2026, 5, 25, 10, 0, 0)
+
+        with mute_logger("odoo.addons.connector_amazon_stock.models.amz_backend"):
+            with self.assertRaises(SellingApiException):
+                self.backend._confirm_shipment(AMZ_ORDER_ID, picking.id)
+
+    @patch("sp_api.api.Orders")
+    def test_confirm_shipment_skips_deleted_picking(self, mock_orders_class):
+        """A picking id that no longer exists is skipped, not raised."""
+        api_instance = MagicMock()
+        mock_orders_class.return_value = api_instance
+        picking = self._make_picking(tracking_ref="GONE")
+        picking_id = picking.id
+        picking.unlink()
+
+        with mute_logger("odoo.addons.connector_amazon_stock.models.amz_backend"):
+            self.backend._confirm_shipment(AMZ_ORDER_ID, picking_id)
+        api_instance.confirm_shipment.assert_not_called()
