@@ -387,17 +387,66 @@ failed jobs, settlement variances, or FBA quantity drift.</p>
 <p><strong>Table of contents</strong></p>
 <div class="contents local topic" id="contents">
 <ul class="simple">
-<li><a class="reference internal" href="#bug-tracker" id="toc-entry-1">Bug Tracker</a></li>
-<li><a class="reference internal" href="#credits" id="toc-entry-2">Credits</a><ul>
-<li><a class="reference internal" href="#authors" id="toc-entry-3">Authors</a></li>
-<li><a class="reference internal" href="#contributors" id="toc-entry-4">Contributors</a></li>
-<li><a class="reference internal" href="#maintainers" id="toc-entry-5">Maintainers</a></li>
+<li><a class="reference internal" href="#usage" id="toc-entry-1">Usage</a><ul>
+<li><a class="reference internal" href="#opening-the-dashboard" id="toc-entry-2">Opening the dashboard</a></li>
+<li><a class="reference internal" href="#scoping" id="toc-entry-3">Scoping</a></li>
+<li><a class="reference internal" href="#reading-the-kpis" id="toc-entry-4">Reading the KPIs</a></li>
+<li><a class="reference internal" href="#health-badge" id="toc-entry-5">Health badge</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#bug-tracker" id="toc-entry-6">Bug Tracker</a></li>
+<li><a class="reference internal" href="#credits" id="toc-entry-7">Credits</a><ul>
+<li><a class="reference internal" href="#authors" id="toc-entry-8">Authors</a></li>
+<li><a class="reference internal" href="#contributors" id="toc-entry-9">Contributors</a></li>
+<li><a class="reference internal" href="#maintainers" id="toc-entry-10">Maintainers</a></li>
 </ul>
 </li>
 </ul>
 </div>
+<div class="section" id="usage">
+<h2><a class="toc-backref" href="#toc-entry-1">Usage</a></h2>
+<div class="section" id="opening-the-dashboard">
+<h3><a class="toc-backref" href="#toc-entry-2">Opening the dashboard</a></h3>
+<p>Go to <strong>Amazon → Dashboard</strong> (top of the Amazon menu, visible to the
+<em>Amazon User</em> group). The screen is a read-only roll-up — you can’t
+create records on it.</p>
+</div>
+<div class="section" id="scoping">
+<h3><a class="toc-backref" href="#toc-entry-3">Scoping</a></h3>
+<p>The <strong>Marketplace</strong> selector at the top scopes every figure to one
+backend. Leave it empty to aggregate across all active backends.</p>
+</div>
+<div class="section" id="reading-the-kpis">
+<h3><a class="toc-backref" href="#toc-entry-4">Reading the KPIs</a></h3>
+<p>KPIs are grouped into sections — Sales, Pricing &amp; Repricing, Fulfillment
+(FBA), Settlements, Returns, and Operations Health. “Problem” figures
+highlight in red/amber when non-zero and expose a <strong>View →</strong> link that
+drills straight into the relevant filtered list (scoped to the same
+backend filter):</p>
+<ul class="simple">
+<li><strong>Unshipped</strong> → orders not yet Shipped/Canceled/Unfulfillable.</li>
+<li><strong>Below Target Margin</strong> → listings whose post-fee net margin is under
+the floor.</li>
+<li><strong>Price Changes (7d)</strong> → recent repricing history.</li>
+<li><strong>FBA Drift SKUs</strong> → SKUs where Amazon’s fulfillable qty ≠ Odoo’s
+on-hand.</li>
+<li><strong>Variances</strong> → settlement reconciliation rows where settled ≠
+invoiced.</li>
+<li><strong>Open Returns</strong> → returns not yet credited/done.</li>
+<li><strong>Failed Jobs</strong> → server-wide failed queue jobs (not backend-scoped).</li>
+</ul>
+</div>
+<div class="section" id="health-badge">
+<h3><a class="toc-backref" href="#toc-entry-5">Health badge</a></h3>
+<p>The <strong>System Health</strong> badge turns red (“Needs Attention”) whenever there
+are failed jobs, settlement variances, FBA drift, or below-target-margin
+listings; otherwise it reads green (“OK”). The <strong>Sync Freshness</strong> card
+shows the last sync timestamp for each data source so you can spot a
+stalled cron at a glance.</p>
+</div>
+</div>
 <div class="section" id="bug-tracker">
-<h2><a class="toc-backref" href="#toc-entry-1">Bug Tracker</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-6">Bug Tracker</a></h2>
 <p>Bugs are tracked on <a class="reference external" href="https://github.com/OCA/connector-amazon/issues">GitHub Issues</a>.
 In case of trouble, please check there if your issue has already been reported.
 If you spotted it first, help us to smash it by providing a detailed and welcomed
@@ -405,21 +454,21 @@ If you spotted it first, help us to smash it by providing a detailed and welcome
 <p>Do not contact contributors directly about support or help with technical issues.</p>
 </div>
 <div class="section" id="credits">
-<h2><a class="toc-backref" href="#toc-entry-2">Credits</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-7">Credits</a></h2>
 <div class="section" id="authors">
-<h3><a class="toc-backref" href="#toc-entry-3">Authors</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-8">Authors</a></h3>
 <ul class="simple">
 <li>Ledo</li>
 </ul>
 </div>
 <div class="section" id="contributors">
-<h3><a class="toc-backref" href="#toc-entry-4">Contributors</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-9">Contributors</a></h3>
 <ul class="simple">
 <li>Ledo <a class="reference external" href="https://github.com/ledoent">https://github.com/ledoent</a></li>
 </ul>
 </div>
 <div class="section" id="maintainers">
-<h3><a class="toc-backref" href="#toc-entry-5">Maintainers</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-10">Maintainers</a></h3>
 <p>This module is maintained by the OCA.</p>
 <a class="reference external image-reference" href="https://odoo-community.org">
 <img alt="Odoo Community Association" src="https://odoo-community.org/logo.png" />
