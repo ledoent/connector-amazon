@@ -47,7 +47,7 @@
                     <field name="last_price_sync_date" />
                 </group>
             </xpath>
-            <xpath expr="//chatter" position="before">
+            <xpath expr="//sheet" position="inside">
                 <notebook>
                     <page name="listings" string="Listings">
                         <field name="amz_listing_ids">

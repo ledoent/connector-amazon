@@ -1,6 +1,6 @@
 {
     "name": "Amazon SP-API Connector: Pricing",
-    "version": "19.0.1.0.1",
+    "version": "19.0.1.1.0",
     "category": "Sales/Sales",
     "summary": "Manage Amazon product listings and sync prices via SP-API",
     "author": "Ledo, Odoo Community Association (OCA)",
@@ -8,7 +8,6 @@
     "license": "AGPL-3",
     "depends": [
         "connector_amazon_sale",
-        "product",
     ],
     "data": [
         "security/ir.model.access.csv",
