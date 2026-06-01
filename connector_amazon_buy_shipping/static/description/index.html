@@ -390,18 +390,48 @@ ConfirmShipment push so the order is never double-confirmed.</p>
 <p><strong>Table of contents</strong></p>
 <div class="contents local topic" id="contents">
 <ul class="simple">
-<li><a class="reference internal" href="#usage" id="toc-entry-1">Usage</a></li>
-<li><a class="reference internal" href="#bug-tracker" id="toc-entry-2">Bug Tracker</a></li>
-<li><a class="reference internal" href="#credits" id="toc-entry-3">Credits</a><ul>
-<li><a class="reference internal" href="#authors" id="toc-entry-4">Authors</a></li>
-<li><a class="reference internal" href="#contributors" id="toc-entry-5">Contributors</a></li>
-<li><a class="reference internal" href="#maintainers" id="toc-entry-6">Maintainers</a></li>
+<li><a class="reference internal" href="#configuration" id="toc-entry-1">Configuration</a></li>
+<li><a class="reference internal" href="#usage" id="toc-entry-2">Usage</a></li>
+<li><a class="reference internal" href="#bug-tracker" id="toc-entry-3">Bug Tracker</a></li>
+<li><a class="reference internal" href="#credits" id="toc-entry-4">Credits</a><ul>
+<li><a class="reference internal" href="#authors" id="toc-entry-5">Authors</a></li>
+<li><a class="reference internal" href="#contributors" id="toc-entry-6">Contributors</a></li>
+<li><a class="reference internal" href="#maintainers" id="toc-entry-7">Maintainers</a></li>
 </ul>
 </li>
 </ul>
 </div>
+<div class="section" id="configuration">
+<h2><a class="toc-backref" href="#toc-entry-1">Configuration</a></h2>
+<ol class="arabic simple">
+<li><strong>Set the Buy Shipping defaults per backend.</strong> Open <strong>Amazon →
+Configuration → Backends</strong> and fill the <em>Buy Shipping Defaults</em>
+section:<ul>
+<li><strong>Default Package Weight</strong> + <strong>unit</strong> (Ounces / Grams) — pre-fills
+the wizard when the moved products carry no weight.</li>
+<li><strong>Default L × W × H</strong> + <strong>unit</strong> (Inches / Centimeters) — the
+package dimensions pre-filled into the wizard.</li>
+<li><strong>Label Format</strong> — <strong>PNG</strong>, <strong>PDF</strong>, or <strong>ZPL</strong> (203 dpi). This is
+the format Amazon returns and the format of the stored label
+attachment, so match it to your printer (ZPL for thermal label
+printers, PDF/PNG for office printers).</li>
+</ul>
+</li>
+<li><strong>Product weights.</strong> The wizard’s weight defaults to the sum of the
+moved products’ <strong>Weight × quantity</strong>; set product weights for
+accurate, per-order pre-fills (the backend default is only the
+fallback).</li>
+<li><strong>Ship-from address.</strong> Labels ship from the backend <strong>Warehouse</strong>
+partner address (falling back to the company address), so ensure the
+warehouse address is complete and accurate.</li>
+<li><strong>No scheduled action.</strong> Buying a label is entirely user-driven from
+the delivery; there is no cron to enable. Buying the label also
+confirms the shipment to Amazon, so these deliveries skip the
+separate ConfirmShipment push automatically.</li>
+</ol>
+</div>
 <div class="section" id="usage">
-<h2><a class="toc-backref" href="#toc-entry-1">Usage</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-2">Usage</a></h2>
 <ol class="arabic simple">
 <li>Set the <strong>Buy Shipping Defaults</strong> on the backend (<strong>Amazon →
 Configuration → Backends</strong>): default package weight, dimensions,
@@ -419,7 +449,7 @@ you can download the label.</li>
 validating the delivery will not send a duplicate tracking push.</p>
 </div>
 <div class="section" id="bug-tracker">
-<h2><a class="toc-backref" href="#toc-entry-2">Bug Tracker</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-3">Bug Tracker</a></h2>
 <p>Bugs are tracked on <a class="reference external" href="https://github.com/OCA/connector-amazon/issues">GitHub Issues</a>.
 In case of trouble, please check there if your issue has already been reported.
 If you spotted it first, help us to smash it by providing a detailed and welcomed
@@ -427,21 +457,21 @@ If you spotted it first, help us to smash it by providing a detailed and welcome
 <p>Do not contact contributors directly about support or help with technical issues.</p>
 </div>
 <div class="section" id="credits">
-<h2><a class="toc-backref" href="#toc-entry-3">Credits</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-4">Credits</a></h2>
 <div class="section" id="authors">
-<h3><a class="toc-backref" href="#toc-entry-4">Authors</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-5">Authors</a></h3>
 <ul class="simple">
 <li>Ledo</li>
 </ul>
 </div>
 <div class="section" id="contributors">
-<h3><a class="toc-backref" href="#toc-entry-5">Contributors</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-6">Contributors</a></h3>
 <ul class="simple">
 <li>Ledo <a class="reference external" href="https://github.com/ledoent">https://github.com/ledoent</a></li>
 </ul>
 </div>
 <div class="section" id="maintainers">
-<h3><a class="toc-backref" href="#toc-entry-6">Maintainers</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-7">Maintainers</a></h3>
 <p>This module is maintained by the OCA.</p>
 <a class="reference external image-reference" href="https://odoo-community.org">
 <img alt="Odoo Community Association" src="https://odoo-community.org/logo.png" />

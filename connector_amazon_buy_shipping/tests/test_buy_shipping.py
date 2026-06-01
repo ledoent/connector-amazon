@@ -149,6 +149,22 @@ class TestBuyShipping(TransactionCase):
         self.assertTrue(shipment.label_attachment_id)
         self.assertEqual(shipment.order_id, self.amz_order)
 
+    def test_download_label_returns_url(self):
+        self._buy()
+        shipment = self.env["amz.shipment"].search(
+            [("picking_id", "=", self.picking.id)]
+        )
+        action = shipment.action_download_label()
+        self.assertEqual(action["type"], "ir.actions.act_url")
+        self.assertEqual(
+            action["url"],
+            f"/web/content/{shipment.label_attachment_id.id}?download=true",
+        )
+
+    def test_download_label_without_attachment(self):
+        shipment = self.env["amz.shipment"].create({"picking_id": self.picking.id})
+        self.assertFalse(shipment.action_download_label())
+
     def test_purchased_picking_skips_double_confirm(self):
         self._buy()
         # The label is already confirmed to Amazon; the tracking-push path must
