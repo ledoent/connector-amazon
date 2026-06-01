@@ -1,6 +1,6 @@
 {
     "name": "Amazon SP-API Connector: FBA Inventory",
-    "version": "19.0.1.0.1",
+    "version": "19.0.1.1.0",
     "category": "Inventory/Inventory",
     "summary": "Read-only FBA inventory visibility and drift vs Odoo on-hand",
     "author": "Ledo, Odoo Community Association (OCA)",

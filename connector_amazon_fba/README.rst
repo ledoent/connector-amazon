@@ -40,7 +40,7 @@ it holds are visible at a glance.
 
 Per SKU it records the fulfillable, inbound (working + shipped +
 receiving), reserved, unsellable, and total FBA quantities, snapshots
-Odoo on-hand (``product.qty_available``), and computes
+the backend warehouse on-hand, and computes
 ``drift = fulfillable − odoo_qty``. Browse it under **Amazon → FBA
 Inventory**, with a **Drift** filter to surface mismatches.
 
@@ -55,6 +55,55 @@ scope for this module.
 
 .. contents::
    :local:
+
+Configuration
+=============
+
+1. **Enable the backends you want synced.** Open **Amazon →
+   Configuration → Backends**, and for each backend tick **Sync FBA
+   Inventory** in the *FBA* section. Backends left unticked are skipped
+   by the scheduled job (the manual **Sync FBA Inventory** button still
+   works on any backend).
+
+2. **Enable the scheduled pull.** The cron **Amazon: Sync FBA
+   Inventory** ships **disabled**. To poll automatically, enable it
+   under **Settings → Technical → Scheduled Actions**. It runs every 6
+   hours by default and enqueues one pull job per enabled, active
+   backend; adjust the interval there to taste.
+
+3. **SKU matching.** FBA rows are linked to Odoo products by **Internal
+   Reference** (``default_code``) matching Amazon's seller SKU. SKUs
+   with no matching product are still recorded (so the drift is visible)
+   but have no product and an Odoo on-hand of 0.
+
+4. **Warehouse.** Drift is computed against the **on-hand of the
+   backend's warehouse**, not global on-hand, so each backend must have
+   its **Warehouse** set for the comparison to be meaningful.
+
+Usage
+=====
+
+1. Enable the sync per backend: open **Amazon → Configuration →
+   Backends**, pick a backend, and tick **Sync FBA Inventory** (under
+   the *FBA* section). Only ticked, active backends are pulled by the
+   scheduled job.
+2. Pull on demand at any time with the **Sync FBA Inventory** button in
+   the backend form header — this queues a background job and does not
+   wait for Amazon.
+3. Browse the result under **Amazon → Fulfillment → FBA Inventory**.
+   Each row is one seller SKU on one backend, with Amazon's fulfillable,
+   inbound, reserved, unsellable and total FBA quantities, the matched
+   Odoo product, and the backend warehouse on-hand.
+4. **Drift** = fulfillable − backend warehouse on-hand. Use the
+   **Drift** filter (or the amber row highlight) to surface SKUs where
+   Amazon and Odoo disagree. Group by **Backend** when you run more than
+   one marketplace.
+5. **Last FBA Sync** on the backend form shows when the last successful
+   pull finished.
+
+This module is read-only — it never writes stock back to Amazon or to
+Odoo on-hand; it only records what Amazon reports so you can see the
+discrepancy.
 
 Bug Tracker
 ===========
