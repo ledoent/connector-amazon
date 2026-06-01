@@ -25,7 +25,7 @@
                     <field name="last_settlement_sync_date" />
                 </group>
             </xpath>
-            <xpath expr="//chatter" position="before">
+            <xpath expr="//sheet" position="inside">
                 <notebook>
                     <page name="settlements" string="Settlements">
                         <field name="amz_settlement_group_ids">

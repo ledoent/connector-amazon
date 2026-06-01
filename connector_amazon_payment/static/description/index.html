@@ -400,17 +400,152 @@ Reconciliation</strong>.</p>
 <p><strong>Table of contents</strong></p>
 <div class="contents local topic" id="contents">
 <ul class="simple">
-<li><a class="reference internal" href="#bug-tracker" id="toc-entry-1">Bug Tracker</a></li>
-<li><a class="reference internal" href="#credits" id="toc-entry-2">Credits</a><ul>
-<li><a class="reference internal" href="#authors" id="toc-entry-3">Authors</a></li>
-<li><a class="reference internal" href="#contributors" id="toc-entry-4">Contributors</a></li>
-<li><a class="reference internal" href="#maintainers" id="toc-entry-5">Maintainers</a></li>
+<li><a class="reference internal" href="#configuration" id="toc-entry-1">Configuration</a><ul>
+<li><a class="reference internal" href="#settlement-accounting-setup" id="toc-entry-2">Settlement accounting setup</a></li>
+<li><a class="reference internal" href="#scheduled-sync" id="toc-entry-3">Scheduled sync</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#usage" id="toc-entry-4">Usage</a><ul>
+<li><a class="reference internal" href="#syncing-settlements" id="toc-entry-5">Syncing settlements</a></li>
+<li><a class="reference internal" href="#reading-a-settlement" id="toc-entry-6">Reading a settlement</a></li>
+<li><a class="reference internal" href="#reconciling-against-invoices" id="toc-entry-7">Reconciling against invoices</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#bug-tracker" id="toc-entry-8">Bug Tracker</a></li>
+<li><a class="reference internal" href="#credits" id="toc-entry-9">Credits</a><ul>
+<li><a class="reference internal" href="#authors" id="toc-entry-10">Authors</a></li>
+<li><a class="reference internal" href="#contributors" id="toc-entry-11">Contributors</a></li>
+<li><a class="reference internal" href="#maintainers" id="toc-entry-12">Maintainers</a></li>
 </ul>
 </li>
 </ul>
 </div>
+<div class="section" id="configuration">
+<h2><a class="toc-backref" href="#toc-entry-1">Configuration</a></h2>
+<div class="section" id="settlement-accounting-setup">
+<h3><a class="toc-backref" href="#toc-entry-2">Settlement accounting setup</a></h3>
+<p>On each backend (<strong>Amazon → Configuration → Backends</strong>), fill the
+<strong>Settlement Accounting</strong> group before running the first sync:</p>
+<table border="1" class="docutils">
+<colgroup>
+<col width="47%" />
+<col width="53%" />
+</colgroup>
+<thead valign="bottom">
+<tr><th class="head">Field</th>
+<th class="head">Purpose</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr><td><strong>Settlement Journal</strong></td>
+<td>Journal for the disbursement
+entry. <strong>Its default account is
+debited with the cash Amazon
+transfers</strong> — without a default
+account the entry is skipped. A
+bank or general journal both work.</td>
+</tr>
+<tr><td><strong>Amazon Income Account</strong></td>
+<td>Revenue account credited for sales
+(and the fallback that absorbs the
+unclassified-adjustment plug).</td>
+</tr>
+<tr><td><strong>Amazon Fee Account</strong></td>
+<td>Expense account for referral, FBA,
+and service fees.</td>
+</tr>
+<tr><td><strong>Amazon Advertising Account</strong></td>
+<td>Expense account for Amazon
+Advertising fees. Falls back to
+the Fee Account if blank.</td>
+</tr>
+<tr><td><strong>Amazon Tax Account</strong></td>
+<td>Liability account for sales tax.
+Marketplace Facilitator Tax that
+Amazon collects and remits nets to
+zero here; only seller-liable tax
+leaves a balance.</td>
+</tr>
+<tr><td><strong>Amazon Shipping Account</strong></td>
+<td>Revenue account for buyer-paid
+shipping and gift-wrap. Falls back
+to Income if blank.</td>
+</tr>
+<tr><td><strong>Amazon Promotion Account</strong></td>
+<td>Contra-revenue account for
+seller-funded promotions/coupons.
+Falls back to Income if blank.</td>
+</tr>
+</tbody>
+</table>
+<p>Minimum to post an entry: a <strong>Settlement Journal with a default
+account</strong> plus an <strong>Income Account</strong> and <strong>Fee Account</strong>. The optional
+tax/shipping/promotion/advertising accounts only refine where those
+buckets land; when unset, their amounts fall into the fallback accounts
+or the unclassified-adjustment line.</p>
+</div>
+<div class="section" id="scheduled-sync">
+<h3><a class="toc-backref" href="#toc-entry-3">Scheduled sync</a></h3>
+<p>The <em>Amazon: Sync Settlements</em> scheduled action ships <strong>disabled</strong> (it
+calls the Finances API). Enable it under <strong>Settings → Technical →
+Scheduled Actions</strong> once accounts are configured. It runs every 6 hours
+against every active backend.</p>
+</div>
+</div>
+<div class="section" id="usage">
+<h2><a class="toc-backref" href="#toc-entry-4">Usage</a></h2>
+<div class="section" id="syncing-settlements">
+<h3><a class="toc-backref" href="#toc-entry-5">Syncing settlements</a></h3>
+<ol class="arabic simple">
+<li>Open <strong>Amazon → Configuration → Backends</strong> and select a backend.</li>
+<li>Make sure the <strong>Settlement Accounting</strong> group is configured (see
+CONFIGURE).</li>
+<li>Click <strong>Sync Settlements</strong> in the form header to queue a pull
+immediately, or enable the <em>Amazon: Sync Settlements</em> scheduled
+action (Settings → Technical → Scheduled Actions) to pull every 6
+hours.</li>
+<li>The pull fetches every settlement group Amazon has marked <strong>Closed</strong>
+since the last sync (first run looks back 90 days). Open groups are
+skipped until Amazon closes them.</li>
+</ol>
+</div>
+<div class="section" id="reading-a-settlement">
+<h3><a class="toc-backref" href="#toc-entry-6">Reading a settlement</a></h3>
+<p>Each closed group becomes an <strong>amz.settlement.group</strong> record, shown on
+the backend’s <strong>Settlements</strong> tab and at <strong>Amazon → Finance</strong>. Open one
+to see:</p>
+<ul class="simple">
+<li><strong>Financial Events</strong> — every revenue/fee component (shipment, refund,
+referral fee, FBA fee, advertising, service fee, tax, shipping,
+promotion) parsed from Amazon’s Finances payload. Positive = money in,
+negative = money out.</li>
+<li><strong>Reconciliation</strong> — one row per Amazon order in the group, matching
+the settled Principal against the order’s posted customer invoice.</li>
+</ul>
+<p>The <strong>Journal Entry</strong> field links the posted <tt class="docutils literal">account.move</tt>. One
+balanced entry is posted per group: revenue buckets credited, fee
+buckets debited, the cash disbursement debited to the settlement
+journal’s account, and any residual booked to an unclassified-adjustment
+line so the entry always balances.</p>
+</div>
+<div class="section" id="reconciling-against-invoices">
+<h3><a class="toc-backref" href="#toc-entry-7">Reconciling against invoices</a></h3>
+<p>When orders are auto-invoiced by the Sales connector, open <strong>Amazon →
+Settlement Reconciliation</strong> for a cross-settlement view:</p>
+<ol class="arabic simple">
+<li>Use the <strong>Variances</strong> / <strong>Matched</strong> / <strong>No Invoice</strong> filters to
+triage.</li>
+<li><strong>Variance</strong> rows (settled Principal ≠ invoiced untaxed total) are
+highlighted red; open one and use <strong>Open Invoice</strong> / <strong>Amazon Order</strong>
+to drill in.</li>
+<li><strong>No Invoice</strong> rows self-heal: once the invoice is posted, the next
+settlement sync re-runs reconciliation and flips them to <strong>Matched</strong>
+(no duplicate rows).</li>
+</ol>
+</div>
+</div>
 <div class="section" id="bug-tracker">
-<h2><a class="toc-backref" href="#toc-entry-1">Bug Tracker</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-8">Bug Tracker</a></h2>
 <p>Bugs are tracked on <a class="reference external" href="https://github.com/OCA/connector-amazon/issues">GitHub Issues</a>.
 In case of trouble, please check there if your issue has already been reported.
 If you spotted it first, help us to smash it by providing a detailed and welcomed
@@ -418,21 +553,21 @@ If you spotted it first, help us to smash it by providing a detailed and welcome
 <p>Do not contact contributors directly about support or help with technical issues.</p>
 </div>
 <div class="section" id="credits">
-<h2><a class="toc-backref" href="#toc-entry-2">Credits</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-9">Credits</a></h2>
 <div class="section" id="authors">
-<h3><a class="toc-backref" href="#toc-entry-3">Authors</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-10">Authors</a></h3>
 <ul class="simple">
 <li>Ledo</li>
 </ul>
 </div>
 <div class="section" id="contributors">
-<h3><a class="toc-backref" href="#toc-entry-4">Contributors</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-11">Contributors</a></h3>
 <ul class="simple">
 <li>Don Kendall &lt;<a class="reference external" href="mailto:dkendall&#64;ledoweb.com">dkendall&#64;ledoweb.com</a>&gt;</li>
 </ul>
 </div>
 <div class="section" id="maintainers">
-<h3><a class="toc-backref" href="#toc-entry-5">Maintainers</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-12">Maintainers</a></h3>
 <p>This module is maintained by the OCA.</p>
 <a class="reference external image-reference" href="https://odoo-community.org">
 <img alt="Odoo Community Association" src="https://odoo-community.org/logo.png" />

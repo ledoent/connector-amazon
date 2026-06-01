@@ -856,3 +856,131 @@ class TestPayment(TransactionCase):
         recon = group.reconciliation_ids
         self.assertEqual(recon.state, "matched")
         self.assertAlmostEqual(recon.invoiced_total, 100.00, places=2)
+
+    # ── cron entry point ──────────────────────────────────────────────────────
+
+    def test_sync_settlements_cron_enqueues_active_only(self):
+        """The cron entry point enqueues a pull per active backend and skips
+        archived ones."""
+        archived = self.env["amz.backend"].create(
+            {
+                "name": "Archived Backend",
+                "client_id": "x",
+                "client_secret": "x",
+                "refresh_token": "x",
+                "marketplace_id": "ATVPDKIKX0DER",
+                "active": False,
+                "warehouse_id": self.backend.warehouse_id.id,
+            }
+        )
+        enqueued = []
+
+        def capturing_with_delay(self_inner, **kw):
+            enqueued.append(self_inner)
+            mock_job = MagicMock()
+            return mock_job
+
+        backends = self.backend + archived
+        with patch.object(type(self.backend), "with_delay", capturing_with_delay):
+            backends.sync_settlements()
+
+        self.assertIn(self.backend, enqueued)
+        self.assertNotIn(archived, enqueued)
+
+    # ── unbalanced + no fallback account → skip ───────────────────────────────
+
+    @mute_logger("odoo.addons.connector_amazon_payment.models.amz_backend")
+    def test_create_settlement_entry_skips_unbalanced_without_fallback(self):
+        """An unbalanced settlement with no income/fee account to absorb the
+        residual is dropped, not posted unbalanced."""
+        # Journal with a default account (so we reach the imbalance guard), but
+        # no income/fee account to host the adjustment line.
+        gen_account = self.env["account.account"].create(
+            {
+                "name": "Amazon Clearing",
+                "code": "100900",
+                "account_type": "asset_current",
+            }
+        )
+        self.bank_journal.default_account_id = gen_account
+        self.backend.write(
+            {
+                "amazon_settlement_journal_id": self.bank_journal.id,
+                "amazon_income_account_id": False,
+                "amazon_fee_account_id": False,
+            }
+        )
+        group = self.env["amz.settlement.group"].create(
+            {
+                "backend_id": self.backend.id,
+                "amazon_group_id": "NOFALLBACK001",
+                "processing_status": "Closed",
+                "converted_total": 95.00,
+                "currency_id": self.usd.id,
+            }
+        )
+        # shipment 100 with no GL account → unmodeled → disbursement 95 leaves a
+        # residual that needs an adjustment account that does not exist.
+        self.env["amz.financial.event"].create(
+            {
+                "settlement_group_id": group.id,
+                "event_type": "shipment",
+                "amount": 100.00,
+            }
+        )
+
+        self.backend._create_settlement_entry(group)
+        self.assertFalse(group.account_move_id)
+
+    # ── service-fee / advertising payload parsing ─────────────────────────────
+
+    def test_parse_service_fee_and_advertising_events(self):
+        """ServiceFeeEvents and AdvertisingFeeEvents payload branches create the
+        corresponding service_fee / advertising financial events."""
+        self._configure_backend()
+        payload = {
+            "FinancialEvents": {
+                "ShipmentEvents": [],
+                "RefundEvents": [],
+                "ServiceFeeEvents": [
+                    {
+                        "PostedDate": "2024-05-03T00:00:00Z",
+                        "FeeReason": "Subscription",
+                        "FeeList": [
+                            {"FeeAmount": {"Amount": "-39.99", "CurrencyCode": "USD"}}
+                        ],
+                    }
+                ],
+                "AdvertisingFeeEvents": [
+                    {
+                        "PostedDate": "2024-05-03T00:00:00Z",
+                        "FeeList": [
+                            {"FeeAmount": {"Amount": "-12.50", "CurrencyCode": "USD"}}
+                        ],
+                    }
+                ],
+            }
+        }
+        groups = {
+            "FinancialEventGroupList": [
+                {**SANDBOX_GROUP_DATA, "FinancialEventGroupId": "GROUPSF"}
+            ]
+        }
+        api = _mock_finances_api(groups, payload)
+        with patch.object(type(self.backend), "_get_api", return_value=api):
+            self.backend._pull_settlements()
+
+        group = self.env["amz.settlement.group"].search(
+            [("backend_id", "=", self.backend.id), ("amazon_group_id", "=", "GROUPSF")]
+        )
+        service_fee = group.financial_event_ids.filtered(
+            lambda e: e.event_type == "service_fee"
+        )
+        advertising = group.financial_event_ids.filtered(
+            lambda e: e.event_type == "advertising"
+        )
+        self.assertTrue(service_fee)
+        self.assertAlmostEqual(service_fee.amount, -39.99, places=2)
+        self.assertEqual(service_fee.fee_description, "Subscription")
+        self.assertTrue(advertising)
+        self.assertAlmostEqual(advertising.amount, -12.50, places=2)

@@ -64,6 +64,117 @@ Reconciliation**.
 .. contents::
    :local:
 
+Configuration
+=============
+
+Settlement accounting setup
+---------------------------
+
+On each backend (**Amazon → Configuration → Backends**), fill the
+**Settlement Accounting** group before running the first sync:
+
++--------------------------------+------------------------------------+
+| Field                          | Purpose                            |
++================================+====================================+
+| **Settlement Journal**         | Journal for the disbursement       |
+|                                | entry. **Its default account is    |
+|                                | debited with the cash Amazon       |
+|                                | transfers** — without a default    |
+|                                | account the entry is skipped. A    |
+|                                | bank or general journal both work. |
++--------------------------------+------------------------------------+
+| **Amazon Income Account**      | Revenue account credited for sales |
+|                                | (and the fallback that absorbs the |
+|                                | unclassified-adjustment plug).     |
++--------------------------------+------------------------------------+
+| **Amazon Fee Account**         | Expense account for referral, FBA, |
+|                                | and service fees.                  |
++--------------------------------+------------------------------------+
+| **Amazon Advertising Account** | Expense account for Amazon         |
+|                                | Advertising fees. Falls back to    |
+|                                | the Fee Account if blank.          |
++--------------------------------+------------------------------------+
+| **Amazon Tax Account**         | Liability account for sales tax.   |
+|                                | Marketplace Facilitator Tax that   |
+|                                | Amazon collects and remits nets to |
+|                                | zero here; only seller-liable tax  |
+|                                | leaves a balance.                  |
++--------------------------------+------------------------------------+
+| **Amazon Shipping Account**    | Revenue account for buyer-paid     |
+|                                | shipping and gift-wrap. Falls back |
+|                                | to Income if blank.                |
++--------------------------------+------------------------------------+
+| **Amazon Promotion Account**   | Contra-revenue account for         |
+|                                | seller-funded promotions/coupons.  |
+|                                | Falls back to Income if blank.     |
++--------------------------------+------------------------------------+
+
+Minimum to post an entry: a **Settlement Journal with a default
+account** plus an **Income Account** and **Fee Account**. The optional
+tax/shipping/promotion/advertising accounts only refine where those
+buckets land; when unset, their amounts fall into the fallback accounts
+or the unclassified-adjustment line.
+
+Scheduled sync
+--------------
+
+The *Amazon: Sync Settlements* scheduled action ships **disabled** (it
+calls the Finances API). Enable it under **Settings → Technical →
+Scheduled Actions** once accounts are configured. It runs every 6 hours
+against every active backend.
+
+Usage
+=====
+
+Syncing settlements
+-------------------
+
+1. Open **Amazon → Configuration → Backends** and select a backend.
+2. Make sure the **Settlement Accounting** group is configured (see
+   CONFIGURE).
+3. Click **Sync Settlements** in the form header to queue a pull
+   immediately, or enable the *Amazon: Sync Settlements* scheduled
+   action (Settings → Technical → Scheduled Actions) to pull every 6
+   hours.
+4. The pull fetches every settlement group Amazon has marked **Closed**
+   since the last sync (first run looks back 90 days). Open groups are
+   skipped until Amazon closes them.
+
+Reading a settlement
+--------------------
+
+Each closed group becomes an **amz.settlement.group** record, shown on
+the backend's **Settlements** tab and at **Amazon → Finance**. Open one
+to see:
+
+- **Financial Events** — every revenue/fee component (shipment, refund,
+  referral fee, FBA fee, advertising, service fee, tax, shipping,
+  promotion) parsed from Amazon's Finances payload. Positive = money in,
+  negative = money out.
+- **Reconciliation** — one row per Amazon order in the group, matching
+  the settled Principal against the order's posted customer invoice.
+
+The **Journal Entry** field links the posted ``account.move``. One
+balanced entry is posted per group: revenue buckets credited, fee
+buckets debited, the cash disbursement debited to the settlement
+journal's account, and any residual booked to an unclassified-adjustment
+line so the entry always balances.
+
+Reconciling against invoices
+----------------------------
+
+When orders are auto-invoiced by the Sales connector, open **Amazon →
+Settlement Reconciliation** for a cross-settlement view:
+
+1. Use the **Variances** / **Matched** / **No Invoice** filters to
+   triage.
+2. **Variance** rows (settled Principal ≠ invoiced untaxed total) are
+   highlighted red; open one and use **Open Invoice** / **Amazon Order**
+   to drill in.
+3. **No Invoice** rows self-heal: once the invoice is posted, the next
+   settlement sync re-runs reconciliation and flips them to **Matched**
+   (no duplicate rows).
+
 Bug Tracker
 ===========
 
