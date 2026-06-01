@@ -399,17 +399,113 @@ logs “nothing to invoice” and skips.</p>
 <p><strong>Table of contents</strong></p>
 <div class="contents local topic" id="contents">
 <ul class="simple">
-<li><a class="reference internal" href="#bug-tracker" id="toc-entry-1">Bug Tracker</a></li>
-<li><a class="reference internal" href="#credits" id="toc-entry-2">Credits</a><ul>
-<li><a class="reference internal" href="#authors" id="toc-entry-3">Authors</a></li>
-<li><a class="reference internal" href="#contributors" id="toc-entry-4">Contributors</a></li>
-<li><a class="reference internal" href="#maintainers" id="toc-entry-5">Maintainers</a></li>
+<li><a class="reference internal" href="#configuration" id="toc-entry-1">Configuration</a><ul>
+<li><a class="reference internal" href="#sale-import-settings-on-the-backend" id="toc-entry-2">Sale-import settings on the backend</a></li>
+<li><a class="reference internal" href="#product-master-data-required-for-sku-mapping" id="toc-entry-3">Product master data (required for SKU mapping)</a></li>
+<li><a class="reference internal" href="#scheduled-import" id="toc-entry-4">Scheduled import</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#usage" id="toc-entry-5">Usage</a></li>
+<li><a class="reference internal" href="#bug-tracker" id="toc-entry-6">Bug Tracker</a></li>
+<li><a class="reference internal" href="#credits" id="toc-entry-7">Credits</a><ul>
+<li><a class="reference internal" href="#authors" id="toc-entry-8">Authors</a></li>
+<li><a class="reference internal" href="#contributors" id="toc-entry-9">Contributors</a></li>
+<li><a class="reference internal" href="#maintainers" id="toc-entry-10">Maintainers</a></li>
 </ul>
 </li>
 </ul>
 </div>
+<div class="section" id="configuration">
+<h2><a class="toc-backref" href="#toc-entry-1">Configuration</a></h2>
+<div class="section" id="sale-import-settings-on-the-backend">
+<h3><a class="toc-backref" href="#toc-entry-2">Sale-import settings on the backend</a></h3>
+<p>This module adds three fields to the Amazon backend (<strong>Amazon &gt;
+Configuration &gt; Backends</strong>, <em>Import Settings</em> group):</p>
+<table border="1" class="docutils">
+<colgroup>
+<col width="37%" />
+<col width="63%" />
+</colgroup>
+<thead valign="bottom">
+<tr><th class="head">Field</th>
+<th class="head">Notes</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr><td><strong>Sales Team</strong></td>
+<td><tt class="docutils literal">crm.team</tt> set on every imported sale
+order (optional).</td>
+</tr>
+<tr><td><strong>Pricelist</strong></td>
+<td><tt class="docutils literal">product.pricelist</tt> applied to imported
+orders. Defaults to the company pricelist
+when left empty.</td>
+</tr>
+<tr><td><strong>Auto-Invoice Orders</strong></td>
+<td>Off by default. When on, each imported
+order is confirmed and a customer invoice
+is created and posted. Requires
+invoiceable products —
+<tt class="docutils literal">invoice_policy = 'order'</tt> is
+recommended; otherwise the step logs
+“nothing to invoice” and skips.</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="section" id="product-master-data-required-for-sku-mapping">
+<h3><a class="toc-backref" href="#toc-entry-3">Product master data (required for SKU mapping)</a></h3>
+<p>Order lines are matched to Odoo products by <strong>Internal Reference</strong>
+(<tt class="docutils literal">product.product.default_code</tt>) equal to the Amazon <strong>Seller SKU</strong>.
+Populate the internal reference on every product you sell on Amazon.
+Unmatched SKUs are imported as description-only sale order lines so no
+order is dropped.</p>
+</div>
+<div class="section" id="scheduled-import">
+<h3><a class="toc-backref" href="#toc-entry-4">Scheduled import</a></h3>
+<p>The <strong>Amazon: Import Orders</strong> cron (shipped disabled by the core module)
+calls <tt class="docutils literal">import_orders()</tt>, which this module provides. Enable it under
+<strong>Settings &gt; Technical &gt; Automation &gt; Scheduled Actions</strong> once your
+backends and product references are configured.</p>
+</div>
+</div>
+<div class="section" id="usage">
+<h2><a class="toc-backref" href="#toc-entry-5">Usage</a></h2>
+<p>To import Amazon orders into Odoo:</p>
+<ol class="arabic simple">
+<li>Configure the backend credentials first (see the <strong>connector_amazon</strong>
+module’s CONFIGURE), then open the backend at <strong>Amazon &gt;
+Configuration &gt; Backends</strong>.</li>
+<li>In the <strong>Import Settings</strong> group, optionally set:<ul>
+<li><strong>Sales Team</strong> — assigned to every imported sale order.</li>
+<li><strong>Pricelist</strong> — applied to imported orders (defaults to the company
+pricelist).</li>
+<li><strong>Auto-Invoice Orders</strong> — when ticked, each imported order is
+confirmed and a customer invoice is created and posted
+automatically.</li>
+</ul>
+</li>
+<li>Make sure your sellable products carry their Amazon <strong>Seller SKU</strong> in
+the product’s <strong>Internal Reference</strong> (<tt class="docutils literal">default_code</tt>). Order lines
+are matched to products by this field.</li>
+<li>Click <strong>Import Orders Now</strong> in the backend form header to pull orders
+on demand, or enable the <strong>Amazon: Import Orders</strong> scheduled action
+to poll automatically every 5 minutes.</li>
+<li>Each Amazon order updated since the last import cursor is fetched;
+orders in <em>Canceled</em> / <em>Unfulfillable</em> status are skipped. For every
+other order Odoo creates or reuses a customer from the shipping
+address, creates a <tt class="docutils literal">sale.order</tt> (lines mapped to products by Seller
+SKU), and links it to the <tt class="docutils literal">amz.order</tt> staging record.</li>
+<li>Review imported orders under <strong>Amazon &gt; Sales &gt; Orders</strong>. Lines whose
+SKU has no matching Odoo product are still created as
+description-only sale lines (never silently dropped) — search for
+them and assign products as needed.</li>
+<li>If <strong>Auto-Invoice Orders</strong> is on, open the linked sale order to find
+the posted customer invoice under its Invoices.</li>
+</ol>
+</div>
 <div class="section" id="bug-tracker">
-<h2><a class="toc-backref" href="#toc-entry-1">Bug Tracker</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-6">Bug Tracker</a></h2>
 <p>Bugs are tracked on <a class="reference external" href="https://github.com/OCA/connector-amazon/issues">GitHub Issues</a>.
 In case of trouble, please check there if your issue has already been reported.
 If you spotted it first, help us to smash it by providing a detailed and welcomed
@@ -417,21 +513,21 @@ If you spotted it first, help us to smash it by providing a detailed and welcome
 <p>Do not contact contributors directly about support or help with technical issues.</p>
 </div>
 <div class="section" id="credits">
-<h2><a class="toc-backref" href="#toc-entry-2">Credits</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-7">Credits</a></h2>
 <div class="section" id="authors">
-<h3><a class="toc-backref" href="#toc-entry-3">Authors</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-8">Authors</a></h3>
 <ul class="simple">
 <li>Ledo</li>
 </ul>
 </div>
 <div class="section" id="contributors">
-<h3><a class="toc-backref" href="#toc-entry-4">Contributors</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-9">Contributors</a></h3>
 <ul class="simple">
 <li>Don Kendall &lt;<a class="reference external" href="mailto:dkendall&#64;ledoweb.com">dkendall&#64;ledoweb.com</a>&gt;</li>
 </ul>
 </div>
 <div class="section" id="maintainers">
-<h3><a class="toc-backref" href="#toc-entry-5">Maintainers</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-10">Maintainers</a></h3>
 <p>This module is maintained by the OCA.</p>
 <a class="reference external image-reference" href="https://odoo-community.org">
 <img alt="Odoo Community Association" src="https://odoo-community.org/logo.png" />

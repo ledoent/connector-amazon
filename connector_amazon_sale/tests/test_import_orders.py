@@ -196,6 +196,61 @@ class TestImportOrders(TransactionCase):
         self.assertEqual(call_kwargs.get("CreatedAfter"), "TEST_CASE_200")
         self.assertNotIn("LastUpdatedAfter", call_kwargs)
 
+    @patch("sp_api.api.Orders")
+    def test_import_orders_skips_cancelled(self, mock_orders_class):
+        """Canceled / Unfulfillable orders must not be enqueued."""
+        api_instance = MagicMock()
+        mock_orders_class.return_value = api_instance
+        response = MagicMock()
+        response.payload = {
+            "Orders": [
+                {"AmazonOrderId": "111-LIVE", "OrderStatus": "Unshipped"},
+                {"AmazonOrderId": "222-CANCEL", "OrderStatus": "Canceled"},
+                {"AmazonOrderId": "333-UNFUL", "OrderStatus": "Unfulfillable"},
+            ]
+        }
+        api_instance.get_orders.return_value = response
+        with patch.object(type(self.backend), "with_delay") as mock_delay:
+            mock_delay.return_value = MagicMock()
+            self.backend.import_orders()
+        self.assertEqual(mock_delay.call_count, 1)
+
+    @patch("sp_api.api.Orders")
+    def test_import_orders_paginates_next_token(self, mock_orders_class):
+        """A NextToken in the first page drives a second get_orders call."""
+        api_instance = MagicMock()
+        mock_orders_class.return_value = api_instance
+        page1 = MagicMock()
+        page1.payload = {
+            "Orders": [{"AmazonOrderId": "P1", "OrderStatus": "Unshipped"}],
+            "NextToken": "TOKEN-2",
+        }
+        page2 = MagicMock()
+        page2.payload = {
+            "Orders": [{"AmazonOrderId": "P2", "OrderStatus": "Unshipped"}]
+        }
+        api_instance.get_orders.side_effect = [page1, page2]
+        with patch.object(type(self.backend), "with_delay") as mock_delay:
+            mock_delay.return_value = MagicMock()
+            self.backend.import_orders()
+        self.assertEqual(api_instance.get_orders.call_count, 2)
+        self.assertEqual(
+            api_instance.get_orders.call_args.kwargs.get("NextToken"), "TOKEN-2"
+        )
+        self.assertEqual(mock_delay.call_count, 2)
+
+    @patch("sp_api.api.Orders")
+    def test_import_orders_get_orders_error_reraises(self, mock_orders_class):
+        """A SellingApiException from get_orders is logged and re-raised."""
+        api_instance = MagicMock()
+        mock_orders_class.return_value = api_instance
+        api_instance.get_orders.side_effect = SellingApiException(
+            [{"code": "QuotaExceeded", "message": "throttled"}], headers={}
+        )
+        with mute_logger("odoo.addons.connector_amazon_sale.models.amz_backend"):
+            with self.assertRaises(SellingApiException):
+                self.backend.import_orders()
+
     # ── Phase 2: opt-in auto-invoice ──────────────────────────────────────────
 
     def _setup_invoiceable_product(self):
